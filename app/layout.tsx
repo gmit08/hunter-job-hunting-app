@@ -13,8 +13,8 @@ const display = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Job search",
-  description: "A dashboard for a high-volume job search: applications, scores, pause, and questions.",
+  title: "Hunter",
+  description: "Hunter, a dashboard for a high-volume job search: one question at a time, then the rest of the tracker.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

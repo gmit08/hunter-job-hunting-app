@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatShortDate, type Application } from "@/lib/applications";
 import type { DashboardData } from "@/lib/mock-data";
+import { AnsweredQuestions, QuestionWizard } from "@/components/question-wizard";
+import { AppMenu } from "@/components/app-menu";
 import { ApplicationBrowser } from "@/components/application-browser";
 import { ApplicationDetail } from "@/components/application-detail";
-import { ControlBar } from "@/components/control-bar";
-import { QuestionsPanel } from "@/components/questions-panel";
+import { postJson, SignInRequired } from "@/components/api-client";
 import { formatScore, statusColor, StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
+import { isOpenStatus } from "@/lib/applications";
 
 export function Dashboard({
   data,
@@ -20,67 +22,71 @@ export function Dashboard({
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Application | null>(null);
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(null);
   const highest = data.summary.top[0];
   const showSetup = data.source !== "sheet" || !passwordProtected || !data.webhookReady;
+  const openCount = data.questions.filter((question) => isOpenStatus(question.status)).length;
+
+  function showToast(next: { ok: boolean; message: string }) {
+    setToast(next);
+    window.setTimeout(() => setToast((current) => (current === next ? null : current)), 4500);
+  }
+
+  async function sendAnswers() {
+    if (sending) return;
+    setSending(true);
+    try {
+      const result = await postJson<{ message: string }>("/api/answers", {});
+      showToast({ ok: true, message: result.message });
+    } catch (caught) {
+      if (caught instanceof SignInRequired) {
+        router.push("/login");
+        return;
+      }
+      showToast({
+        ok: false,
+        message: caught instanceof Error ? caught.message : "Your assistant was not notified.",
+      });
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-medium tracking-[0.18em] text-primary uppercase">Dashboard</p>
-              <h1 className="mt-1 font-heading text-3xl leading-none font-medium tracking-tight sm:text-4xl">
-                Job search
-              </h1>
+      <AppMenu
+        paused={data.paused}
+        webhookReady={data.webhookReady}
+        passwordProtected={passwordProtected}
+        openCount={openCount}
+      />
+
+      <div className="mx-auto w-full max-w-6xl lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.75fr)] lg:items-start lg:gap-10 lg:px-6">
+        <div className="min-h-dvh lg:min-h-0">
+          {data.source === "error" ? (
+            <div className="px-4 pt-5 lg:px-0 lg:pt-8">
+              <ErrorBanner data={data} onRetry={() => router.refresh()} />
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" variant="outline" className="h-10 px-3" onClick={() => router.refresh()}>
-                Refresh
-              </Button>
-              {passwordProtected ? (
-                <form action="/api/logout" method="post">
-                  <Button type="submit" variant="ghost" className="h-10 px-3">
-                    Sign out
-                  </Button>
-                </form>
-              ) : null}
-            </div>
-          </div>
-          <nav className="flex gap-4 text-sm">
-            <a className="text-muted-foreground hover:text-foreground" href="#overview">
-              Overview
-            </a>
-            <a className="text-muted-foreground hover:text-foreground" href="#questions">
-              Questions
-            </a>
-            <a className="text-muted-foreground hover:text-foreground" href="#applications">
-              Applications
-            </a>
-          </nav>
+          ) : (
+            <QuestionWizard questions={data.questions} sending={sending} onSend={sendAnswers} />
+          )}
         </div>
-      </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 sm:py-8">
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-          Your applications, scores, and questions in one place. Updated {data.fetchedAt}.
-        </p>
+        <main className="flex flex-col gap-8 px-4 py-8 sm:px-6 lg:px-0 lg:py-8">
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Updated {data.fetchedAt}.</p>
+          {showSetup ? <SetupBanner data={data} passwordProtected={passwordProtected} /> : null}
+          {data.source !== "error" && data.paused ? (
+            <p className="rounded-2xl bg-primary/10 px-4 py-3 text-sm text-primary">
+              Automatic runs are paused. Your assistant will skip the backlog until you turn the switch off.
+            </p>
+          ) : null}
 
-        {showSetup ? <SetupBanner data={data} passwordProtected={passwordProtected} /> : null}
-        {data.source === "error" ? <ErrorBanner data={data} onRetry={() => router.refresh()} /> : null}
-        {data.source !== "error" && data.paused ? (
-          <p className="rounded-2xl bg-primary/10 px-4 py-3 text-sm text-primary">
-            Automatic runs are paused. Your assistant will skip the backlog until you turn the switch off.
-          </p>
-        ) : null}
-
-        <ControlBar paused={data.paused} webhookReady={data.webhookReady} />
-
-        {data.source === "error" ? null : (
-          <>
-            <section id="overview" className="scroll-mt-24">
+          {data.source === "error" ? null : (
+            <>
+              <section id="overview" className="scroll-mt-24">
               <h2 className="font-heading text-2xl font-medium">Overview</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <Stat label="Applications" value={String(data.summary.total)} detail="In the tracker" />
                 <Stat
                   label="This week"
@@ -103,7 +109,7 @@ export function Dashboard({
                 />
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="mt-4 grid gap-3">
                 <article className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
                   <h3 className="font-medium">Status</h3>
                   {data.summary.statuses.length === 0 ? (
@@ -177,13 +183,20 @@ export function Dashboard({
               ) : null}
             </section>
 
-            <QuestionsPanel questions={data.questions} />
-            <ApplicationBrowser applications={data.applications} onSelect={setSelected} />
-            <ApplicationDetail application={selected} onClose={() => setSelected(null)} />
-          </>
-        )}
+              <AnsweredQuestions questions={data.questions} />
+            </>
+          )}
+        </main>
+      </div>
 
-        <footer className="border-t pt-4 text-xs leading-5 text-muted-foreground">
+      {data.source === "error" ? null : (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-2 sm:px-6">
+          <ApplicationBrowser applications={data.applications} onSelect={setSelected} />
+          <ApplicationDetail application={selected} onClose={() => setSelected(null)} />
+        </div>
+      )}
+
+      <footer className="mx-auto w-full max-w-6xl border-t px-4 py-4 text-xs leading-5 text-muted-foreground sm:px-6">
           {data.source === "sheet" ? (
             <p>
               Reading your spreadsheet
@@ -197,8 +210,27 @@ export function Dashboard({
           ) : (
             <p>Sample applications stay in this running preview. They are not written to your spreadsheet.</p>
           )}
-        </footer>
-      </main>
+      </footer>
+
+      <Button
+        type="button"
+        className="fixed right-6 bottom-6 z-30 hidden h-11 rounded-full px-4 shadow-lg lg:inline-flex"
+        disabled={sending || data.source === "error"}
+        onClick={sendAnswers}
+      >
+        {sending ? "Sending…" : "Send all answers now"}
+      </Button>
+
+      {toast ? (
+        <p
+          role="status"
+          className={`fixed top-20 left-1/2 z-50 w-[min(24rem,calc(100%-2rem))] -translate-x-1/2 rounded-2xl px-4 py-3 text-sm shadow-lg ring-1 ${
+            toast.ok ? "bg-card text-primary ring-primary/20" : "bg-card text-destructive ring-destructive/20"
+          }`}
+        >
+          {toast.message}
+        </p>
+      ) : null}
     </div>
   );
 }
