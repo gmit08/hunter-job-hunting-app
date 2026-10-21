@@ -132,6 +132,49 @@
   animation: hunter-card-in 220ms ease-out;
 }
 
+.wizard-touch-actions,
+.wizard-touch-hint,
+.send-mobile {
+  display: none;
+}
+
+.wizard-desktop-hint {
+  display: flex;
+}
+
+.send-desktop {
+  display: inline-flex;
+}
+
+@media (pointer: coarse) {
+  .wizard-touch-actions {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .wizard-touch-hint {
+    display: block;
+  }
+
+  .wizard-desktop-hint {
+    display: none;
+  }
+
+  .send-mobile {
+    display: block;
+  }
+
+  .send-desktop {
+    display: none;
+  }
+
+  .coarse-page-pad {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

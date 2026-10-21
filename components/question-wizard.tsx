@@ -2,8 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatShortDate, isOpenStatus, type Question } from "@/lib/applications";
-import { reconcileOrder, skipToBack } from "@/lib/question-stack";
+import { formatShortDate, isDoneStatus, isOpenStatus, type Question } from "@/lib/applications";
+import {
+  buildWizardOrder,
+  cursorAfterSave,
+  cursorAfterSkip,
+  enterInsertsNewline,
+  initialCursor,
+  noteSaved,
+  noteSkipped,
+  previousIndex,
+  usesCoarsePointer,
+} from "@/lib/question-stack";
 import { postJson, SignInRequired } from "@/components/api-client";
 import { Button } from "@/components/ui/button";
 
@@ -36,30 +46,59 @@ export function QuestionWizard({
 }) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Record<number, string>>({});
-  const [answeredRows, setAnsweredRows] = useState<number[]>([]);
-  const [sessionOrder, setSessionOrder] = useState<number[]>([]);
+  const [localAnswers, setLocalAnswers] = useState<Record<number, string>>({});
+  const [localStatus, setLocalStatus] = useState<Record<number, string>>({});
+  const [sessionSaved, setSessionSaved] = useState<number[]>([]);
+  const [skipped, setSkipped] = useState<number[]>([]);
+  const [cursorOverride, setCursorOverride] = useState<number | "complete" | null>(null);
   const [savingRow, setSavingRow] = useState<number | null>(null);
   const [error, setError] = useState("");
   const areaRef = useRef<HTMLTextAreaElement>(null);
-  const previousRow = useRef<number | null>(null);
+  const previousFocus = useRef<number | null>(null);
 
-  const openRows = questions
-    .filter((question) => isOpenStatus(question.status) && !answeredRows.includes(question.row))
-    .map((question) => question.row);
-  const order = reconcileOrder(sessionOrder, openRows);
-  const current = questions.find((question) => question.row === order[0]);
+  function statusOf(question: Question): string {
+    if (isDoneStatus(question.status)) return question.status;
+    return localStatus[question.row] ?? question.status;
+  }
+
+  function answerOf(question: Question): string {
+    if (isDoneStatus(question.status)) return question.answer;
+    if (localAnswers[question.row] !== undefined) return localAnswers[question.row];
+    return question.answer;
+  }
+
+  const sheetRows = questions.map((question) => {
+    const status = statusOf(question);
+    return {
+      row: question.row,
+      editable: !isDoneStatus(status),
+      open: isOpenStatus(status),
+    };
+  });
+  const openRows = new Set(sheetRows.filter((row) => row.open).map((row) => row.row));
+  const order = buildWizardOrder({ sheetRows, sessionSaved, skipped });
+  let cursor = cursorOverride;
+  if (typeof cursor === "number" && !order.includes(cursor)) cursor = null;
+  if (cursor == null) cursor = initialCursor(order, openRows) ?? "complete";
+  const current = typeof cursor === "number" ? questions.find((question) => question.row === cursor) : undefined;
+  const backIndex = previousIndex(order, current ? current.row : "complete");
 
   useEffect(() => {
     if (!current) return;
-    if (previousRow.current !== null && previousRow.current !== current.row) {
+    if (previousFocus.current !== null && previousFocus.current !== current.row) {
       areaRef.current?.focus();
     }
-    previousRow.current = current.row;
+    previousFocus.current = current.row;
   }, [current]);
+
+  function textFor(question: Question): string {
+    if (drafts[question.row] !== undefined) return drafts[question.row];
+    return answerOf(question);
+  }
 
   async function submit(question: Question) {
     if (savingRow !== null) return;
-    const answer = (drafts[question.row] ?? "").trim();
+    const answer = textFor(question).trim();
     setError("");
     if (!answer) {
       setError("Type an answer first.");
@@ -72,8 +111,27 @@ export function QuestionWizard({
         question: question.question,
         answer,
       });
-      setDrafts((existing) => ({ ...existing, [question.row]: "" }));
-      setAnsweredRows((existing) => [...existing, question.row]);
+      const nextSession = noteSaved(sessionSaved, question.row);
+      const nextSkipped = skipped.filter((row) => row !== question.row);
+      const nextSheet = sheetRows.map((row) =>
+        row.row === question.row ? { ...row, open: false, editable: true } : row,
+      );
+      const nextOrder = buildWizardOrder({
+        sheetRows: nextSheet,
+        sessionSaved: nextSession,
+        skipped: nextSkipped,
+      });
+      const nextOpen = new Set([...openRows].filter((row) => row !== question.row));
+      setDrafts((existing) => {
+        const next = { ...existing };
+        delete next[question.row];
+        return next;
+      });
+      setLocalAnswers((existing) => ({ ...existing, [question.row]: answer }));
+      setLocalStatus((existing) => ({ ...existing, [question.row]: "Answered" }));
+      setSessionSaved(nextSession);
+      setSkipped(nextSkipped);
+      setCursorOverride(cursorAfterSave(nextOrder, question.row, nextOpen));
       router.refresh();
     } catch (caught) {
       if (caught instanceof SignInRequired) {
@@ -86,10 +144,19 @@ export function QuestionWizard({
     }
   }
 
-  function skip() {
-    if (savingRow !== null) return;
+  function skip(question: Question) {
+    if (savingRow !== null || !isOpenStatus(statusOf(question))) return;
     setError("");
-    setSessionOrder(skipToBack(order));
+    const nextSkipped = noteSkipped(skipped, question.row);
+    const nextOrder = buildWizardOrder({ sheetRows, sessionSaved, skipped: nextSkipped });
+    setSkipped(nextSkipped);
+    setCursorOverride(cursorAfterSkip(order, nextOrder, question.row, openRows));
+  }
+
+  function back() {
+    if (backIndex == null || savingRow !== null) return;
+    setError("");
+    setCursorOverride(order[backIndex]);
   }
 
   if (!current) {
@@ -109,20 +176,33 @@ export function QuestionWizard({
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Saved answers are already in the sheet. This asks your assistant to submit them now, instead of waiting for the next run.
           </p>
-          <Button type="button" className="mt-5 h-12 w-full text-base" disabled={sending} onClick={onSend}>
-            {sending ? "Sending…" : "Send all answers now"}
-          </Button>
+          <div className="mt-5 flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-12 bg-muted px-5 text-muted-foreground"
+              disabled={backIndex == null || sending}
+              onClick={back}
+            >
+              Back
+            </Button>
+            <Button type="button" className="h-12 flex-1 text-base" disabled={sending} onClick={onSend}>
+              {sending ? "Sending…" : "Send all answers now"}
+            </Button>
+          </div>
         </article>
       </section>
     );
   }
 
   const saving = savingRow === current.row;
+  const openCard = isOpenStatus(statusOf(current));
+  const shown = textFor(current);
 
   return (
     <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
       <p className="font-heading text-4xl leading-none font-medium tracking-tight lg:text-5xl">
-        {order.length}{" "}
+        {openRows.size}{" "}
         <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
       </p>
 
@@ -149,10 +229,12 @@ export function QuestionWizard({
             <span className="sr-only">Answer for {current.job || "this question"}</span>
             <textarea
               ref={areaRef}
-              value={drafts[current.row] ?? ""}
+              value={shown}
               onChange={(event) => setDrafts((existing) => ({ ...existing, [current.row]: event.target.value }))}
               onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.shiftKey || event.repeat || event.nativeEvent.isComposing) return;
+                if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+                if (enterInsertsNewline(usesCoarsePointer(), event.shiftKey)) return;
+                if (event.repeat) return;
                 event.preventDefault();
                 void submit(current);
               }}
@@ -166,26 +248,48 @@ export function QuestionWizard({
               {error}
             </p>
           ) : null}
-          <div className="mt-3 flex gap-2 lg:hidden">
-            <Button type="button" className="h-12 flex-1 text-base" disabled={saving} onClick={() => submit(current)}>
-              {saving ? "Saving…" : "Next"}
-            </Button>
+          <div className="mt-3 flex items-center gap-2">
             <Button
               type="button"
               variant="secondary"
-              className="h-12 bg-muted px-5 text-muted-foreground"
-              disabled={saving}
-              onClick={skip}
+              className="h-12 shrink-0 bg-muted px-4 text-muted-foreground"
+              disabled={saving || backIndex == null}
+              onClick={back}
             >
-              Skip
+              Back
             </Button>
+            <div className="wizard-touch-actions gap-2">
+              <Button type="button" className="h-12 min-w-0 flex-1 text-base" disabled={saving} onClick={() => submit(current)}>
+                {saving ? "Saving…" : "Next"}
+              </Button>
+              {openCard ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-12 bg-muted px-5 text-muted-foreground"
+                  disabled={saving}
+                  onClick={() => skip(current)}
+                >
+                  Skip
+                </Button>
+              ) : null}
+            </div>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground lg:hidden">Next saves this card. Skip keeps it for later.</p>
-          <p className="mt-2 hidden items-center gap-3 text-xs text-muted-foreground lg:flex">
+          <p className="wizard-touch-hint mt-2 text-xs text-muted-foreground">
+            Next saves this card. Return starts a new line.{openCard ? " Skip keeps it for later." : ""}
+          </p>
+          <p className="wizard-desktop-hint mt-2 items-center gap-3 text-xs text-muted-foreground">
             <span>Enter sends this card · Shift+Enter for a new line</span>
-            <button type="button" className="text-muted-foreground underline underline-offset-4 hover:text-foreground" disabled={saving} onClick={skip}>
-              Skip
-            </button>
+            {openCard ? (
+              <button
+                type="button"
+                className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                disabled={saving}
+                onClick={() => skip(current)}
+              >
+                Skip
+              </button>
+            ) : null}
           </p>
         </article>
       </div>
@@ -195,8 +299,8 @@ export function QuestionWizard({
 
 export function AnsweredQuestions({ questions }: { questions: Question[] }) {
   const [open, setOpen] = useState(false);
-  const handled = questions.filter((question) => !isOpenStatus(question.status));
-  if (handled.length === 0) return null;
+  const sent = questions.filter((question) => isDoneStatus(question.status));
+  if (sent.length === 0) return null;
 
   return (
     <div>
@@ -206,11 +310,11 @@ export function AnsweredQuestions({ questions }: { questions: Question[] }) {
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
       >
-        {open ? "Hide" : "Show"} {handled.length} already answered
+        {open ? "Hide" : "Show"} {sent.length} already sent
       </button>
       {open ? (
         <div className="mt-3 grid gap-3">
-          {handled.map((question) => (
+          {sent.map((question) => (
             <article key={question.row} className="rounded-2xl bg-muted/60 px-4 py-3 text-sm">
               <p className="text-xs text-muted-foreground">{formatShortDate(question.date)}</p>
               <p className="mt-1 font-medium">{question.job || "A job"}</p>
