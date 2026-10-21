@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatShortDate, isOpenStatus, type Question } from "@/lib/applications";
+import { reconcileOrder, skipToBack } from "@/lib/question-stack";
 import { postJson, SignInRequired } from "@/components/api-client";
 import { Button } from "@/components/ui/button";
 
@@ -36,15 +37,17 @@ export function QuestionWizard({
   const router = useRouter();
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [answeredRows, setAnsweredRows] = useState<number[]>([]);
+  const [sessionOrder, setSessionOrder] = useState<number[]>([]);
   const [savingRow, setSavingRow] = useState<number | null>(null);
   const [error, setError] = useState("");
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const previousRow = useRef<number | null>(null);
 
-  const remaining = questions.filter(
-    (question) => isOpenStatus(question.status) && !answeredRows.includes(question.row),
-  );
-  const current = remaining[0];
+  const openRows = questions
+    .filter((question) => isOpenStatus(question.status) && !answeredRows.includes(question.row))
+    .map((question) => question.row);
+  const order = reconcileOrder(sessionOrder, openRows);
+  const current = questions.find((question) => question.row === order[0]);
 
   useEffect(() => {
     if (!current) return;
@@ -83,6 +86,12 @@ export function QuestionWizard({
     }
   }
 
+  function skip() {
+    if (savingRow !== null) return;
+    setError("");
+    setSessionOrder(skipToBack(order));
+  }
+
   if (!current) {
     return (
       <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
@@ -113,14 +122,13 @@ export function QuestionWizard({
   return (
     <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
       <p className="font-heading text-4xl leading-none font-medium tracking-tight lg:text-5xl">
-        {remaining.length}{" "}
+        {order.length}{" "}
         <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
       </p>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">Only this card is active.</p>
 
       <div className="relative mt-5 pb-6">
-        {remaining.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
-        {remaining.length > 1 ? <div className="absolute inset-x-2.5 top-2.5 bottom-2 rounded-3xl bg-card ring-1 ring-foreground/10" /> : null}
+        {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
+        {order.length > 1 ? <div className="absolute inset-x-2.5 top-2.5 bottom-2 rounded-3xl bg-card ring-1 ring-foreground/10" /> : null}
         <article key={current.row} className="hunter-card relative rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
           <p className="text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
           <h2 className="mt-2 font-heading text-3xl leading-tight font-medium tracking-tight">
@@ -158,11 +166,27 @@ export function QuestionWizard({
               {error}
             </p>
           ) : null}
-          <Button type="button" className="mt-3 h-12 w-full text-base lg:hidden" disabled={saving} onClick={() => submit(current)}>
-            {saving ? "Saving…" : "Next"}
-          </Button>
-          <p className="mt-2 text-xs text-muted-foreground lg:hidden">Next saves this card.</p>
-          <p className="mt-2 hidden text-xs text-muted-foreground lg:block">Enter sends this card · Shift+Enter for a new line</p>
+          <div className="mt-3 flex gap-2 lg:hidden">
+            <Button type="button" className="h-12 flex-1 text-base" disabled={saving} onClick={() => submit(current)}>
+              {saving ? "Saving…" : "Next"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-12 bg-muted px-5 text-muted-foreground"
+              disabled={saving}
+              onClick={skip}
+            >
+              Skip
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground lg:hidden">Next saves this card. Skip keeps it for later.</p>
+          <p className="mt-2 hidden items-center gap-3 text-xs text-muted-foreground lg:flex">
+            <span>Enter sends this card · Shift+Enter for a new line</span>
+            <button type="button" className="text-muted-foreground underline underline-offset-4 hover:text-foreground" disabled={saving} onClick={skip}>
+              Skip
+            </button>
+          </p>
         </article>
       </div>
     </section>
