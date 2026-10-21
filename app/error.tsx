@@ -8,7 +8,7 @@ export default function ErrorPage({ reset }: { error: Error; reset: () => void }
 
   return (
     <main className="mx-auto flex min-h-full max-w-lg flex-col justify-center px-4 py-16">
-      <p className="text-[11px] font-medium tracking-[0.18em] text-primary uppercase">Job search</p>
+      <p className="font-heading text-2xl leading-none font-medium tracking-tight">Hunter</p>
       <h1 className="mt-2 font-heading text-3xl font-medium">The dashboard hit a snag</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
         Nothing was changed in your spreadsheet. Try again, and if it keeps happening, refresh the page.

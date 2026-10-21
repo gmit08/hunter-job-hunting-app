@@ -5,6 +5,11 @@ export type WebhookEnv = {
   scheme?: string;
   bodyField?: string;
   production?: boolean;
+  action?: string;
+  source?: string;
+  urlLabel?: string;
+  keyLabel?: string;
+  missingMessage?: string;
 };
 
 export type WebhookRequest = {
@@ -13,6 +18,8 @@ export type WebhookRequest = {
   body: Record<string, string>;
 };
 
+export type WebhookFailure = { ok: false; message: string; code?: "unconfigured" };
+
 const DEFAULT_HEADER = "Authorization";
 const DEFAULT_SCHEME = "Bearer";
 
@@ -20,30 +27,35 @@ function clean(value: string | undefined): string {
   return value?.trim() ?? "";
 }
 
-export function buildWebhookRequest(env: WebhookEnv): { ok: true; request: WebhookRequest } | { ok: false; message: string } {
+export function buildWebhookRequest(env: WebhookEnv): { ok: true; request: WebhookRequest } | WebhookFailure {
   const url = clean(env.url);
   const key = env.key?.trim() ?? "";
+  const urlLabel = env.urlLabel ?? "WEBHOOK_URL";
+  const keyLabel = env.keyLabel ?? "WEBHOOK_KEY";
   if (!url || !key) {
     return {
       ok: false,
-      message: "Run backlog is not set up yet. Add WEBHOOK_URL and WEBHOOK_KEY on the server, then try again.",
+      code: "unconfigured",
+      message:
+        env.missingMessage ??
+        `Run backlog is not set up yet. Add ${urlLabel} and ${keyLabel} on the server, then try again.`,
     };
   }
   if (/[\r\n]/.test(key)) {
-    return { ok: false, message: "WEBHOOK_KEY cannot contain a line break." };
+    return { ok: false, message: `${keyLabel} cannot contain a line break.` };
   }
 
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return { ok: false, message: "WEBHOOK_URL is not a valid web address." };
+    return { ok: false, message: `${urlLabel} is not a valid web address.` };
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return { ok: false, message: "WEBHOOK_URL must start with https://." };
+    return { ok: false, message: `${urlLabel} must start with https://.` };
   }
   if (env.production && parsed.protocol !== "https:") {
-    return { ok: false, message: "WEBHOOK_URL must use https:// once the dashboard is deployed." };
+    return { ok: false, message: `${urlLabel} must use https:// once the dashboard is deployed.` };
   }
 
   const headerName = clean(env.header) || DEFAULT_HEADER;
@@ -59,8 +71,8 @@ export function buildWebhookRequest(env: WebhookEnv): { ok: true; request: Webho
     Accept: "application/json",
   };
   const body: Record<string, string> = {
-    action: "run-backlog",
-    source: "job-hunt-dashboard",
+    action: env.action ?? "run-backlog",
+    source: env.source ?? "job-hunt-dashboard",
   };
 
   if (!skipHeader) {
@@ -114,5 +126,67 @@ export async function triggerBacklog(): Promise<{ ok: true; message: string } | 
     return { ok: true, message: "The backlog routine was started." };
   } catch {
     return { ok: false, message: "The routine did not start. The webhook could not be reached." };
+  }
+}
+
+const ANSWERS_MISSING =
+  "Send all answers is not set up yet. Add ANSWERS_WEBHOOK_URL and ANSWERS_WEBHOOK_KEY on the server, then try again.";
+
+export type AnswersResult = { ok: true; message: string } | { ok: false; message: string; unconfigured?: boolean };
+
+type AnswersEnv = {
+  ANSWERS_WEBHOOK_URL?: string;
+  ANSWERS_WEBHOOK_KEY?: string;
+  WEBHOOK_KEY_HEADER?: string;
+  WEBHOOK_KEY_SCHEME?: string;
+  WEBHOOK_KEY_BODY_FIELD?: string;
+};
+
+export function answersStatus(result: { ok: boolean; unconfigured?: boolean }): number {
+  if (result.ok) return 200;
+  return result.unconfigured ? 400 : 502;
+}
+
+export async function triggerAnswers(options: {
+  fetchImpl?: typeof fetch;
+  env?: AnswersEnv;
+  production?: boolean;
+} = {}): Promise<AnswersResult> {
+  const env = options.env ?? process.env;
+  const built = buildWebhookRequest({
+    url: env.ANSWERS_WEBHOOK_URL,
+    key: env.ANSWERS_WEBHOOK_KEY,
+    header: env.WEBHOOK_KEY_HEADER,
+    scheme: env.WEBHOOK_KEY_SCHEME,
+    bodyField: env.WEBHOOK_KEY_BODY_FIELD,
+    production: options.production ?? process.env.NODE_ENV === "production",
+    action: "answers-ready",
+    source: "hunter",
+    urlLabel: "ANSWERS_WEBHOOK_URL",
+    keyLabel: "ANSWERS_WEBHOOK_KEY",
+    missingMessage: ANSWERS_MISSING,
+  });
+  if (!built.ok) {
+    return { ok: false, message: built.message, unconfigured: built.code === "unconfigured" };
+  }
+
+  try {
+    const response = await (options.fetchImpl ?? fetch)(built.request.url, {
+      method: "POST",
+      headers: built.request.headers,
+      body: JSON.stringify(built.request.body),
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(25000),
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: `Your assistant was not notified. The webhook replied with status ${response.status}.`,
+      };
+    }
+    return { ok: true, message: "Your assistant was asked to submit the saved answers." };
+  } catch {
+    return { ok: false, message: "Your assistant was not notified. The webhook could not be reached." };
   }
 }

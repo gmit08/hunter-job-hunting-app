@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test lib/applications.test.ts lib/webhook.test.ts"
+    "test": "node --import tsx --test lib/applications.test.ts lib/webhook.test.ts lib/question-stack.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

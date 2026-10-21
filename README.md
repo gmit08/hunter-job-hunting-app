@@ -1,8 +1,8 @@
-# Job search dashboard
+# Hunter
 
 **Genevieve Mitchell** · Senior / AI Product Manager
 
-![Dashboard with sample applications](docs/screenshot.png)
+![Hunter with a sample question](docs/screenshot.png)
 
 ## The problem
 
@@ -16,10 +16,10 @@ AI agents search and score ZipRecruiter jobs, then auto-apply to strong matches 
 
 The sheet is the record. The dashboard is how I look at it and talk back.
 
-- **Visibility.** Totals, applications from this week, the status mix, the average desirability score, the highest-scoring roles, and a searchable table with the notes behind each row.
-- **Run now.** A button asks the server to call the backlog webhook. The address and the secret never reach the browser.
-- **Pause.** A switch writes a boolean the agent reads before the next run. I can stop automatic applies without opening another tool.
-- **Questions, asynchronously.** Open questions from the sheet show up on the page. I answer when I have a minute. The answer is written back, and the agent picks it up on its next run. This is not a live chat.
+- **Questions first.** Pending questions are a stack of cards. I only deal with the top card. It shows the date, the job and company, and the question. On a desktop keyboard, Enter saves that answer and the next card slides in. Shift+Enter adds a new line. On a phone, Next does the same thing, because the return key is not reliable. Skip puts the card at the back of the stack for this sitting. It writes nothing, and the count does not change. If every card left has been skipped, they keep coming around. The count above the stack is how many are still open. On a phone, that stack is the whole first screen.
+- **Send all answers now.** Each answer is already in the sheet before I press this. The button, which stays in the corner on a desktop and shows up again when the last card is done, asks the server to ping my assistant so those answers get submitted now. The ping does not include the answer text. If the answers webhook is not configured, the page says so.
+- **Visibility.** Totals, applications from this week, the status mix, the average desirability score, the highest-scoring roles, and a searchable table with the notes behind each row. On a phone I reach them by scrolling, or from the menu.
+- **One menu.** Pause, Run backlog, and the section links live in a menu at the top right. There is no row of links across the header. The webhook address and the secret never reach the browser.
 
 ## Product decisions and tradeoffs
 
@@ -29,9 +29,11 @@ The sheet is the record. The dashboard is how I look at it and talk back.
 
 **Pause is a cell, not a service.** On the Dashboard Control tab, A1 is the label and B1 is TRUE or FALSE. The agent checks that cell. There is no queue and no feature-flag vendor. Pause is only as fresh as the next time the agent looks.
 
-**Questions are rows, not a chat thread.** Pending Questions is Date, Job/Company, Question, Answer, and Status (`Open` or `Answered`). A blank status counts as open. I answer on the dashboard. The agent reads `Answered` rows later. I gave up instant back-and-forth so I would not have to be online while the agent is running.
+**Questions are rows, not a chat thread.** Pending Questions is Date, Job/Company, Question, Answer, and Status (`Open` or `Answered`). A blank status counts as open. The card shows those first three fields and nothing looked up from Applications. I did not add a match score or a posting link, because that would mean new columns or a fuzzy join, and both break when the agent phrases the row differently. A web address already written in the question is clickable. Enter or Next writes the answer immediately. The agent reads `Answered` rows later. I gave up instant back-and-forth so I would not have to be online while the agent is running.
 
-**The webhook secret stays on the server.** Run now is a server POST. The header name, and whether the key is sent as a bearer token, a raw header, or a JSON field, are settings. I did not want to rebuild the agent endpoint to match the dashboard. A deployed site requires https.
+**Send all is a ping, not a second copy of the answers.** The button does not wait until the stack is empty, and it does not resend the text. The server POSTs `action: answers-ready` and `source: hunter` to `ANSWERS_WEBHOOK_URL`. The key uses the same header, scheme, or body field as the backlog key. The answer text is never in that body. My assistant reads the sheet and submits what is already there.
+
+**The webhook secret stays on the server.** Run now and Send all answers are server POSTs. The header name, and whether the key is sent as a bearer token, a raw header, or a JSON field, are settings shared by both calls. I did not want to rebuild the agent endpoint to match the dashboard. A deployed site requires https.
 
 **One shared password, not accounts.** This is a single-operator tool. A password cookie is enough, and there is no user table. If the password is unset, the page stays open and says so. That is useful on my own machine, and the wrong setting for a shared link.
 
@@ -86,17 +88,19 @@ Put these in `.env.local` on your computer, and in Vercel’s environment variab
 | `SPREADSHEET_ID` | Yes, once Google credentials are set | The id in the spreadsheet URL, between `/d/` and `/edit`. |
 | `WEBHOOK_URL` | Yes, for Run now | Server-side address that starts the backlog routine. |
 | `WEBHOOK_KEY` | Yes, for Run now | Server-side secret for that call. |
-| `WEBHOOK_KEY_HEADER` | No | Header that carries the key. Default: `Authorization`. Use `none` to skip the header. |
+| `ANSWERS_WEBHOOK_URL` | Yes, for Send all answers now | Server-side address that pings the assistant. The answer text is not sent. |
+| `ANSWERS_WEBHOOK_KEY` | Yes, for Send all answers now | Server-side secret for that ping. |
+| `WEBHOOK_KEY_HEADER` | No | Header that carries either key. Default: `Authorization`. Use `none` to skip the header. |
 | `WEBHOOK_KEY_SCHEME` | No | Prefix for the key. Default: `Bearer`. Use `raw` to send the key alone. |
 | `WEBHOOK_KEY_BODY_FIELD` | No | If set, the key is also placed in the JSON body under this field name. |
 
-The browser never receives `WEBHOOK_URL` or `WEBHOOK_KEY`.
+The browser never receives the webhook addresses or keys.
 
 - Default: an `Authorization` header using the `Bearer` scheme. Leave the optional webhook settings as they are in `.env.example`.
 - A custom header with the key alone: set `WEBHOOK_KEY_HEADER` to the header name and `WEBHOOK_KEY_SCHEME` to `raw`.
 - The key in the JSON body instead of a header: `WEBHOOK_KEY_HEADER=none` and `WEBHOOK_KEY_BODY_FIELD` set to the field name.
 
-On a deployed site the webhook address must start with `https://`.
+On a deployed site both webhook addresses must start with `https://`.
 
 ### Connect a Google Sheet
 

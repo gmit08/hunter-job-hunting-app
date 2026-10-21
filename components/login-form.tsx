@@ -1,3 +1,4 @@
+import { HunterLogo } from "@/components/hunter-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,10 @@ export function LoginForm({ error }: { error?: string }) {
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-4 py-16">
-      <p className="text-[11px] font-medium tracking-[0.18em] text-primary uppercase">Job search</p>
+      <div className="flex items-center gap-2 text-primary">
+        <HunterLogo className="size-8" />
+        <p className="font-heading text-2xl leading-none font-medium tracking-tight text-foreground">Hunter</p>
+      </div>
       <h1 className="mt-2 font-heading text-4xl font-medium tracking-tight">Welcome back</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
         Enter the dashboard password to open your applications.
