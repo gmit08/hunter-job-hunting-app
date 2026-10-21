@@ -188,6 +188,10 @@ export function isOpenStatus(status: string): boolean {
   return text === "" || text === "open";
 }
 
+export function isDoneStatus(status: string): boolean {
+  return status.trim().toLowerCase() === "done";
+}
+
 export function sameText(left: string, right: string): boolean {
   return left.replace(/\s+/g, " ").trim() === right.replace(/\s+/g, " ").trim();
 }

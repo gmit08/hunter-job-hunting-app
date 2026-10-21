@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   columnLetter,
   findHeaderRow,
+  isDoneStatus,
   isOpenStatus,
   locateQuestionColumns,
   parseApplications,
@@ -13,7 +14,7 @@ import {
   startOfWeekISO,
   summarize,
 } from "./applications";
-import { sampleApplications, sampleQuestions } from "./mock-data";
+import { sampleApplications, sampleQuestions, sampleSaveAnswer } from "./mock-data";
 
 const NOW = new Date("2026-10-17T16:00:00-04:00");
 
@@ -93,7 +94,7 @@ describe("application headers", () => {
   });
 });
 
-describe("pending questions", () => {
+describe("pending questions", { concurrency: false }, () => {
   it("finds columns by header and keeps open questions separate from answered ones", () => {
     const rows = [
       ["Status", "Answer", "Question", "Job/Company", "Date"],
@@ -124,6 +125,34 @@ describe("pending questions", () => {
     const open = questions.filter((question) => isOpenStatus(question.status));
     assert.equal(open.length, 2);
     assert.equal(questions.some((question) => question.status === "Answered"), true);
+    assert.equal(isDoneStatus("Done"), true);
+    assert.equal(isDoneStatus("done "), true);
+    assert.equal(isDoneStatus("Answered"), false);
+    assert.equal(isDoneStatus("Open"), false);
+  });
+
+  it("refuses to edit a question the assistant already marked done", () => {
+    const store = (
+      globalThis as { __jobDashboardSample?: { answers: Record<number, { answer: string; status: string }> } }
+    ).__jobDashboardSample;
+    assert.ok(store);
+    const row = 4;
+    const previous = store.answers[row];
+    store.answers[row] = { answer: "No. I do not need sponsorship.", status: "Done" };
+    try {
+      assert.throws(
+        () =>
+          sampleSaveAnswer(
+            row,
+            "The form asks if you need sponsorship. What should I answer?",
+            "Yes",
+          ),
+        /already sent/,
+      );
+    } finally {
+      if (previous) store.answers[row] = previous;
+      else delete store.answers[row];
+    }
   });
 });
 

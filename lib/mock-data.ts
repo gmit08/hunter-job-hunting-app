@@ -1,4 +1,5 @@
 import {
+  isDoneStatus,
   parseApplications,
   parseQuestions,
   parseScoring,
@@ -309,6 +310,11 @@ export function sampleSaveAnswer(row: number, question: string, answer: string):
   const current = parseQuestions(SAMPLE_QUESTION_ROWS).find((item) => item.row === row);
   if (!current || current.question.replace(/\s+/g, " ").trim() !== question.replace(/\s+/g, " ").trim()) {
     throw new Error("That question changed. Refresh the page and try again.");
+  }
+  const saved = sampleStore.answers[row];
+  const status = saved?.status ?? current.status;
+  if (isDoneStatus(status)) {
+    throw new Error("That question was already sent, so it can't be edited.");
   }
   sampleStore.answers[row] = { answer, status: "Answered" };
   return { ...current, answer, status: "Answered" };

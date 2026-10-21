@@ -54,7 +54,7 @@ export function Dashboard({
   }
 
   return (
-    <div className="min-h-full">
+    <div className="coarse-page-pad min-h-full">
       <AppMenu
         paused={data.paused}
         webhookReady={data.webhookReady}
@@ -214,12 +214,22 @@ export function Dashboard({
 
       <Button
         type="button"
-        className="fixed right-6 bottom-6 z-30 hidden h-11 rounded-full px-4 shadow-lg lg:inline-flex"
+        className="send-desktop fixed right-6 bottom-6 z-30 h-11 rounded-full px-4 shadow-lg"
         disabled={sending || data.source === "error"}
         onClick={sendAnswers}
       >
         {sending ? "Sending…" : "Send all answers now"}
       </Button>
+      <div className="send-mobile fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <Button
+          type="button"
+          className="h-11 w-full"
+          disabled={sending || data.source === "error"}
+          onClick={sendAnswers}
+        >
+          {sending ? "Sending…" : "Send all answers now"}
+        </Button>
+      </div>
 
       {toast ? (
         <p

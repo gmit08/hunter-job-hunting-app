@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import {
   columnLetter,
   formatTimestamp,
+  isDoneStatus,
   locateQuestionColumns,
   parseApplications,
   parsePaused,
@@ -334,9 +335,13 @@ export async function saveAnswer(input: {
   if (!columns || columns.answer < 0 || columns.status < 0 || columns.question < 0) {
     throw new Error("The Pending Questions tab needs Question, Answer, and Status columns.");
   }
-  const current = (rows ?? [])[input.row - 1]?.[columns.question];
+  const record = (rows ?? [])[input.row - 1];
+  const current = record?.[columns.question];
   if (!sameText(String(current ?? ""), input.question)) {
     throw new Error("That question changed in the sheet. Refresh the page and try again.");
+  }
+  if (isDoneStatus(String(record?.[columns.status] ?? ""))) {
+    throw new Error("That question was already sent, so it can't be edited.");
   }
   await writeCells(state.credentials, state.email, [
     {
