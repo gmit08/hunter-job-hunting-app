@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatShortDate, isDoneStatus, isOpenStatus, type Question } from "@/lib/applications";
@@ -17,77 +17,33 @@ import {
 } from "@/lib/question-stack";
 import { postJson, SignInRequired } from "@/components/api-client";
 import { Button } from "@/components/ui/button";
+import { THREE_DAY_CHECK_WORKING_TOAST } from "@/lib/three-day-check";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
 const THREE_DAY_CHECK_LABEL = "Run 3-day check: drop questions for closed jobs";
 
 function ThreeDayCheckButton({ checking, onCheck }: { checking: boolean; onCheck: () => void }) {
-  const panelId = useId();
-  const [confirming, setConfirming] = useState(false);
   const locked = useRef(false);
 
   useEffect(() => {
     if (!checking) locked.current = false;
   }, [checking]);
 
-  useEffect(() => {
-    if (!confirming) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setConfirming(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [confirming]);
-
-  function run() {
-    if (locked.current || checking) return;
-    locked.current = true;
-    setConfirming(false);
-    onCheck();
-  }
-
   return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        className="grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-60"
-        aria-label={checking ? "Running 3-day check" : THREE_DAY_CHECK_LABEL}
-        title={THREE_DAY_CHECK_LABEL}
-        aria-expanded={confirming}
-        aria-controls={panelId}
-        aria-busy={checking}
-        disabled={checking}
-        onClick={() => setConfirming((open) => !open)}
-      >
-        <RefreshCw className={checking ? "size-5 animate-spin motion-reduce:animate-none" : "size-5"} aria-hidden="true" />
-      </button>
-      {confirming && !checking ? (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label="Confirm 3-day check"
-          className="absolute top-full right-0 z-20 mt-2 w-56 rounded-2xl bg-card p-3 text-sm shadow-lg ring-1 ring-foreground/10"
-        >
-          <p className="leading-5 text-muted-foreground">Drop questions for jobs that are no longer posted?</p>
-          <div className="mt-2 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
-              onClick={run}
-            >
-              Run check
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      className="grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-60"
+      aria-label={checking ? THREE_DAY_CHECK_WORKING_TOAST : THREE_DAY_CHECK_LABEL}
+      aria-busy={checking}
+      disabled={checking}
+      onClick={() => {
+        if (locked.current || checking) return;
+        locked.current = true;
+        onCheck();
+      }}
+    >
+      <RefreshCw className={checking ? "size-5 animate-spin motion-reduce:animate-none" : "size-5"} aria-hidden="true" />
+    </button>
   );
 }
 

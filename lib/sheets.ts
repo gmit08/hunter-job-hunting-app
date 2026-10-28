@@ -21,6 +21,11 @@ import {
   sampleSetPaused,
   type DashboardData,
 } from "./mock-data";
+import {
+  COMPLETED_CELL_LABEL,
+  parseCompletedCell,
+  parseCompletionTimestamp,
+} from "./three-day-check";
 import { webhookConfigured } from "./webhook";
 
 const MISSING_SPREADSHEET = "Set SPREADSHEET_ID to the spreadsheet you shared with the service account.";
@@ -194,8 +199,11 @@ async function ensureControlTabs(credentials: JWTInput, email: string, titles: S
   const writes: { range: string; values: unknown[][] }[] = [];
   if (!titles.has(CONTROL_TAB)) {
     writes.push({
-      range: `${quoteTab(CONTROL_TAB)}!A1:B1`,
-      values: [["Paused", false]],
+      range: `${quoteTab(CONTROL_TAB)}!A1:B2`,
+      values: [
+        ["Paused", false],
+        [COMPLETED_CELL_LABEL, ""],
+      ],
     });
   }
   if (!titles.has(QUESTIONS_TAB)) {
@@ -290,6 +298,21 @@ async function requireLive() {
   if (state.status === "invalid") throw new Error(state.message);
   if (!spreadsheetId()) throw new Error(MISSING_SPREADSHEET);
   return { state, live: true as const };
+}
+
+export async function readThreeDayCheckCompletedAt(): Promise<{ completedAt: string | null }> {
+  await connection();
+  const parsed = parseCompletedCell(process.env.THREEDAYCHECK_COMPLETED_CELL);
+  if (!parsed) {
+    throw new Error("THREEDAYCHECK_COMPLETED_CELL must be one cell, like Dashboard Control!B2.");
+  }
+  const { state, live } = await requireLive();
+  if (!live) return { completedAt: null };
+  const titles = await sheetTitles(state.credentials, state.email);
+  await ensureControlTabs(state.credentials, state.email, titles);
+  const [rows] = await readRanges(state.credentials, state.email, [`${quoteTab(parsed.tab)}!${parsed.cell}`]);
+  const completedMs = parseCompletionTimestamp(rows?.[0]?.[0]);
+  return { completedAt: completedMs == null ? null : new Date(completedMs).toISOString() };
 }
 
 export async function setPaused(paused: boolean): Promise<{ paused: boolean; sample: boolean }> {

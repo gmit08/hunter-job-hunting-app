@@ -91,6 +91,21 @@ describe("question card stack", () => {
     assert.deepEqual(buildWizardOrder({ sheetRows: withNew, sessionSaved: [], skipped: [2] }), [4, 3, 9, 2]);
   });
 
+  it("drops a removed open card and keeps Back on a row that is still there", () => {
+    const start = buildWizardOrder({ sheetRows: sheet, sessionSaved: [], skipped: [3] });
+    assert.deepEqual(start, [4, 2, 3]);
+    const remaining = sheet.filter((row) => row.row !== 2);
+    const order = buildWizardOrder({ sheetRows: remaining, sessionSaved: [], skipped: [3, 2] });
+    assert.deepEqual(order, [4, 3]);
+    const open = new Set(remaining.filter((row) => row.open).map((row) => row.row));
+    assert.equal(open.size, 1);
+    const cursor = order.includes(2) ? 2 : (order.find((row) => open.has(row)) ?? "complete");
+    assert.equal(cursor, 3);
+    const back = previousIndex(order, cursor);
+    assert.equal(back == null ? null : order[back], 4);
+    assert.equal(previousIndex([], "complete"), null);
+  });
+
   it("inserts a newline for Shift+Enter and for a coarse pointer", () => {
     assert.equal(enterInsertsNewline(false, false), false);
     assert.equal(enterInsertsNewline(false, true), true);
