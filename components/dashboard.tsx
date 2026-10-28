@@ -55,12 +55,11 @@ export function Dashboard({
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
-  const cancelledRef = useRef(false);
   const checkRunRef = useRef(0);
 
   useEffect(() => {
     return () => {
-      cancelledRef.current = true;
+      checkRunRef.current += 1;
     };
   }, []);
   const highest = data.summary.top[0];
@@ -98,7 +97,7 @@ export function Dashboard({
     const run = ++checkRunRef.current;
     const clickedAt = Date.now();
     const deadline = clickedAt + THREE_DAY_CHECK_WAIT_MS;
-    const alive = () => run === checkRunRef.current && !cancelledRef.current;
+    const alive = () => run === checkRunRef.current;
     setChecking(true);
     showToast({ tone: "working", message: THREE_DAY_CHECK_WORKING_TOAST }, true);
     try {
