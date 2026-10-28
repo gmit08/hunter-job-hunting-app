@@ -26,6 +26,7 @@ type PingEnv = {
   WEBHOOK_KEY_HEADER?: string;
   WEBHOOK_KEY_SCHEME?: string;
   WEBHOOK_KEY_BODY_FIELD?: string;
+  [key: string]: string | undefined;
 };
 
 function linkedInConfigured(env: PingEnv): boolean {
