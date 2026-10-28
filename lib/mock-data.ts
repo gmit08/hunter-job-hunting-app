@@ -229,13 +229,14 @@ function sampleRows(now = new Date()): unknown[][] {
 }
 
 const SAMPLE_QUESTION_ROWS: unknown[][] = [
-  ["Date", "Job/Company", "Question", "Answer", "Status"],
+  ["Date", "Job/Company", "Question", "Answer", "Status", "Source"],
   [
     "",
     "Lumen Field Health — Senior Product Manager",
     "They asked if you can interview Thursday at 2pm ET. Should I say yes?",
     "",
     "Open",
+    "",
   ],
   [
     "",
@@ -243,6 +244,7 @@ const SAMPLE_QUESTION_ROWS: unknown[][] = [
     "The form wants a desired salary. Should I enter 160000?",
     "",
     "Open",
+    "LinkedIn",
   ],
   [
     "",
@@ -250,6 +252,15 @@ const SAMPLE_QUESTION_ROWS: unknown[][] = [
     "The form asks if you need sponsorship. What should I answer?",
     "No. I do not need sponsorship.",
     "Answered",
+    "ZipRecruiter",
+  ],
+  [
+    "",
+    "Kepler Labs — Product Manager",
+    "Can you start in two weeks?",
+    "Yes. Two weeks from the offer.",
+    "Done",
+    "LinkedIn",
   ],
 ];
 
@@ -265,7 +276,7 @@ const SAMPLE_SCORING_ROWS: unknown[][] = [
 ];
 
 function withSampleDates(questions: Question[], now = new Date()): Question[] {
-  const dates = [daysAgo(0, now), daysAgo(1, now), daysAgo(6, now)];
+  const dates = [daysAgo(0, now), daysAgo(1, now), daysAgo(6, now), daysAgo(8, now)];
   return questions.map((question, index) => ({ ...question, date: dates[index] ?? question.date }));
 }
 

@@ -76,17 +76,14 @@ export function Dashboard({
     if (sending) return;
     setSending(true);
     try {
-      const result = await postJson<{ message: string }>("/api/answers", {});
-      showToast({ tone: "success", message: result.message });
+      await postJson<{ message: string }>("/api/answers", {});
+      showToast({ tone: "success", message: QUESTIONS_UPDATED_TOAST });
     } catch (caught) {
       if (caught instanceof SignInRequired) {
         router.push("/login");
         return;
       }
-      showToast({
-        tone: "danger",
-        message: caught instanceof Error ? caught.message : "Your assistant was not notified.",
-      });
+      showToast({ tone: "warning", message: THREE_DAY_CHECK_ERROR_TOAST });
     } finally {
       setSending(false);
     }

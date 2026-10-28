@@ -13,10 +13,12 @@ import {
   parseScoring,
   sameText,
   summarize,
+  type Question,
 } from "./applications";
 import {
   emptyDashboard,
   sampleDashboard,
+  sampleQuestions,
   sampleSaveAnswer,
   sampleSetPaused,
   type DashboardData,
@@ -208,8 +210,8 @@ async function ensureControlTabs(credentials: JWTInput, email: string, titles: S
   }
   if (!titles.has(QUESTIONS_TAB)) {
     writes.push({
-      range: `${quoteTab(QUESTIONS_TAB)}!A1:E1`,
-      values: [["Date", "Job/Company", "Question", "Answer", "Status"]],
+      range: `${quoteTab(QUESTIONS_TAB)}!A1:F1`,
+      values: [["Date", "Job/Company", "Question", "Answer", "Status", "Source"]],
     });
   }
   if (writes.length) await writeCells(credentials, email, writes);
@@ -259,6 +261,18 @@ async function readLive(credentials: JWTInput, email: string, now: Date): Promis
     webhookReady: webhookConfigured(),
     generatedAt: now.getTime(),
   };
+}
+
+export async function loadQuestions(): Promise<Question[]> {
+  await connection();
+  const state = readCredentialState();
+  if (state.status === "missing") return sampleQuestions();
+  if (state.status === "invalid") throw new Error(state.message);
+  if (!spreadsheetId()) throw new Error(MISSING_SPREADSHEET);
+  const titles = await sheetTitles(state.credentials, state.email);
+  await ensureControlTabs(state.credentials, state.email, titles);
+  const [rows] = await readRanges(state.credentials, state.email, [`${quoteTab(QUESTIONS_TAB)}!A1:Z1000`]);
+  return parseQuestions(rows ?? []);
 }
 
 export async function loadDashboard(): Promise<DashboardData> {
