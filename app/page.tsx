@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Dashboard } from "@/components/dashboard";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { isAuthed, passwordConfigured } from "@/lib/auth";
+import { isDemoMode } from "@/lib/mode";
 import { loadDashboard } from "@/lib/sheets";
 
 export default function HomePage() {
@@ -16,5 +17,5 @@ export default function HomePage() {
 async function HomeContent() {
   if (!(await isAuthed())) redirect("/login");
   const data = await loadDashboard();
-  return <Dashboard data={data} passwordProtected={passwordConfigured()} />;
+  return <Dashboard data={data} passwordProtected={passwordConfigured()} demo={isDemoMode()} />;
 }

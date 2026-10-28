@@ -28,6 +28,8 @@ import {
   parseCompletedCell,
   parseCompletionTimestamp,
 } from "./three-day-check";
+import { buildDemoDashboard, demoQuestions } from "./demo-data";
+import { isDemoMode } from "./mode";
 import { webhookConfigured } from "./webhook";
 
 const MISSING_SPREADSHEET = "Set SPREADSHEET_ID to the spreadsheet you shared with the service account.";
@@ -265,6 +267,7 @@ async function readLive(credentials: JWTInput, email: string, now: Date): Promis
 
 export async function loadQuestions(): Promise<Question[]> {
   await connection();
+  if (isDemoMode()) return demoQuestions(new Date());
   const state = readCredentialState();
   if (state.status === "missing") return sampleQuestions();
   if (state.status === "invalid") throw new Error(state.message);
@@ -278,6 +281,7 @@ export async function loadQuestions(): Promise<Question[]> {
 export async function loadDashboard(): Promise<DashboardData> {
   await connection();
   const now = new Date();
+  if (isDemoMode()) return buildDemoDashboard(now);
   const fetchedAt = formatTimestamp(now);
   const webhookReady = webhookConfigured();
   const state = readCredentialState();

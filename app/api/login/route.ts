@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookieOptions, passwordConfigured, passwordsMatch, SESSION_COOKIE, sessionToken } from "@/lib/auth";
+import { configuredPassword } from "@/lib/mode";
 
 const attempts = new Map<string, { count: number; lockedUntil: number }>();
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
 
   const form = await request.formData().catch(() => null);
   const password = String(form?.get("password") ?? "");
-  const expected = process.env.DASHBOARD_PASSWORD ?? "";
+  const expected = configuredPassword();
 
   if (!passwordConfigured()) {
     return NextResponse.redirect(new URL("/", request.url), 303);
