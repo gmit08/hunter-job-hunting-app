@@ -2,11 +2,12 @@ import "server-only";
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { configuredPassword } from "./mode";
 
 export const SESSION_COOKIE = "gm_dashboard";
 
 export function passwordConfigured(): boolean {
-  return Boolean(process.env.DASHBOARD_PASSWORD);
+  return Boolean(configuredPassword());
 }
 
 export function sessionToken(password: string): string {
@@ -31,7 +32,7 @@ export function cookieOptions() {
 
 export async function isAuthed(): Promise<boolean> {
   const jar = await cookies();
-  const expected = process.env.DASHBOARD_PASSWORD;
+  const expected = configuredPassword();
   if (!expected) return true;
   const value = jar.get(SESSION_COOKIE)?.value;
   if (!value) return false;

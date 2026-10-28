@@ -46,9 +46,11 @@ async function readThreeDayCheckCompletion(): Promise<string | null> {
 export function Dashboard({
   data,
   passwordProtected,
+  demo = false,
 }: {
   data: DashboardData;
   passwordProtected: boolean;
+  demo?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Application | null>(null);
@@ -63,7 +65,7 @@ export function Dashboard({
     };
   }, []);
   const highest = data.summary.top[0];
-  const showSetup = data.source !== "sheet" || !passwordProtected || !data.webhookReady;
+  const showSetup = data.source !== "demo" && (data.source !== "sheet" || !passwordProtected || !data.webhookReady);
   const openCount = data.questions.filter((question) => isOpenStatus(question.status)).length;
 
   function showToast(next: Toast, persist = false) {
@@ -75,7 +77,9 @@ export function Dashboard({
   async function sendAnswers() {
     if (sending) return;
     setSending(true);
+    if (demo) showToast({ tone: "working", message: THREE_DAY_CHECK_WORKING_TOAST }, true);
     try {
+      if (demo) await delay(700);
       await postJson<{ message: string }>("/api/answers", {});
       showToast({ tone: "success", message: QUESTIONS_UPDATED_TOAST });
     } catch (caught) {
@@ -132,6 +136,7 @@ export function Dashboard({
         webhookReady={data.webhookReady}
         passwordProtected={passwordProtected}
         openCount={openCount}
+        demo={demo}
       />
 
       <div className="mx-auto w-full max-w-6xl lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.75fr)] lg:items-start lg:gap-10 lg:px-6">
@@ -153,6 +158,7 @@ export function Dashboard({
 
         <main className="flex flex-col gap-8 px-4 py-8 sm:px-6 lg:px-0 lg:py-8">
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Updated {data.fetchedAt}.</p>
+          {data.persona ? <p className="max-w-xl text-sm leading-6">{data.persona}</p> : null}
           {showSetup ? <SetupBanner data={data} passwordProtected={passwordProtected} /> : null}
           {data.source !== "error" && data.paused ? (
             <p className="rounded-2xl bg-primary/10 px-4 py-3 text-sm text-primary">
@@ -275,7 +281,9 @@ export function Dashboard({
       )}
 
       <footer className="mx-auto w-full max-w-6xl border-t px-4 py-4 text-xs leading-5 text-muted-foreground sm:px-6">
-          {data.source === "sheet" ? (
+          {data.source === "demo" ? (
+            <p>Fictional search for Jordan Rivera, PharmD. No real employers or applications.</p>
+          ) : data.source === "sheet" ? (
             <p>
               Reading your spreadsheet
               {data.serviceAccountEmail ? ` as ${data.serviceAccountEmail}` : ""}.{" "}

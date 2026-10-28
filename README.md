@@ -84,7 +84,9 @@ Put these in `.env.local` on your computer, and in Vercel’s environment variab
 
 | Name | Required | What it is |
 | --- | --- | --- |
-| `DASHBOARD_PASSWORD` | Yes, before you share the link | Password for the page. If this is empty, anyone with the link can open it. |
+| `DASHBOARD_PASSWORD` | Yes, before you share the real link | Password for the real page. If this is empty, anyone with the link can open it. Ignored when `APP_MODE` is `demo`. |
+| `APP_MODE` | No | Set to `demo` on the public sample project. Leave it unset for the real tracker. |
+| `DEMO_PASSWORD` | No | Password for the demo site only. Leave it empty for a public demo. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Yes, to read a real sheet | The whole service-account key file, pasted as one value. |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Only if you skip the JSON value | The `client_email` field from the key file. |
 | `GOOGLE_PRIVATE_KEY` | Only if you skip the JSON value | The `private_key` field from the key file. Keep the `\n` characters. |
@@ -146,3 +148,16 @@ The Hobby plan works when the project is imported from GitHub.
 7. If Google refuses access, share the sheet with the service account as Editor. The page shows that client email when it has one.
 
 After the first deploy, Vercel redeploys when you push. Changing a variable needs a new deploy before the live site picks it up.
+
+### Public demo
+
+The same repo can run twice. The real project keeps its Google and webhook variables and does not set `APP_MODE`. A second Vercel project sets `APP_MODE` to `demo` and shows a fictional pharmacist search for Jordan Rivera, PharmD. Demo mode reads a bundled fixture. It does not call Google or any webhook, even if those variables are present. Answers, Send all, and the 3-day check succeed locally and reset when the browser reloads.
+
+1. In Vercel, create a second project and import this same GitHub repository. Leave the framework as Next.js and the build command as `npm run build`.
+2. Connect it to the same production branch as the real project, usually `main`, so a push deploys both.
+3. In the demo project’s environment variables, set `APP_MODE` to `demo` for Production. Add it to Preview only if preview links should be the demo too.
+4. Do not copy `DASHBOARD_PASSWORD`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SPREADSHEET_ID`, or any webhook URL or key into the demo project.
+5. Leave `DEMO_PASSWORD` empty for a public demo. Set it only if the demo should ask for a password.
+6. Deploy. The header should say Demo · sample data, and the page should open without a password.
+
+Later pushes to that branch deploy both projects. The real site stays on its own variables.

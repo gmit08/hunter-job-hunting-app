@@ -11,11 +11,12 @@ import {
   type Summary,
 } from "./applications";
 
-export type DashboardSource = "sample" | "sheet" | "error";
+export type DashboardSource = "sample" | "sheet" | "error" | "demo";
 
 export type DashboardData = {
   source: DashboardSource;
   message?: string;
+  persona?: string;
   serviceAccountEmail?: string;
   spreadsheetUrl?: string;
   paused: boolean;

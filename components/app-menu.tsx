@@ -20,11 +20,13 @@ export function AppMenu({
   webhookReady,
   passwordProtected,
   openCount,
+  demo = false,
 }: {
   paused: boolean;
   webhookReady: boolean;
   passwordProtected: boolean;
   openCount: number;
+  demo?: boolean;
 }) {
   const router = useRouter();
   const menuId = useId();
@@ -115,9 +117,14 @@ export function AppMenu({
   return (
     <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-2.5 text-primary">
-          <HunterLogo className="size-8" />
+        <div className="flex min-w-0 items-center gap-2.5 text-primary">
+          <HunterLogo className="size-8 shrink-0" />
           <h1 className="font-heading text-2xl leading-none font-medium tracking-tight text-foreground">Hunter</h1>
+          {demo ? (
+            <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground">
+              Demo · sample data
+            </span>
+          ) : null}
         </div>
         <button
           ref={buttonRef}
