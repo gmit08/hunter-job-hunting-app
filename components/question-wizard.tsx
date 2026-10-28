@@ -16,6 +16,7 @@ import {
   usesCoarsePointer,
 } from "@/lib/question-stack";
 import { postJson, SignInRequired } from "@/components/api-client";
+import { SourcePill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { THREE_DAY_CHECK_WORKING_TOAST } from "@/lib/three-day-check";
 
@@ -263,7 +264,10 @@ export function QuestionWizard({
         {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
         {order.length > 1 ? <div className="absolute inset-x-2.5 top-2.5 bottom-2 rounded-3xl bg-card ring-1 ring-foreground/10" /> : null}
         <article key={current.row} className="hunter-card relative rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
-          <p className="text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
+            <SourcePill source={current.source} />
+          </div>
           <h2 className="mt-2 font-heading text-3xl leading-tight font-medium tracking-tight">
             {current.job || "A job"}
           </h2>
@@ -369,7 +373,10 @@ export function AnsweredQuestions({ questions }: { questions: Question[] }) {
         <div className="mt-3 grid gap-3">
           {sent.map((question) => (
             <article key={question.row} className="rounded-2xl bg-muted/60 px-4 py-3 text-sm">
-              <p className="text-xs text-muted-foreground">{formatShortDate(question.date)}</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">{formatShortDate(question.date)}</p>
+                <SourcePill source={question.source} />
+              </div>
               <p className="mt-1 font-medium">{question.job || "A job"}</p>
               <p className="mt-1 text-muted-foreground">{question.question}</p>
               <p className="mt-2 whitespace-pre-wrap">{question.answer || "No answer text."}</p>

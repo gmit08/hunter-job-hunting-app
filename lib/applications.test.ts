@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import {
   columnLetter,
   findHeaderRow,
+  isAnsweredStatus,
   isDoneStatus,
   isOpenStatus,
+  questionSourceLabel,
   locateQuestionColumns,
   parseApplications,
   parsePaused,
@@ -110,9 +112,11 @@ describe("pending questions", { concurrency: false }, () => {
       question: 2,
       answer: 1,
       status: 0,
+      source: -1,
     });
     const questions = parseQuestions(rows);
     assert.equal(questions.length, 3);
+    assert.equal(questions.every((question) => question.source === "ZipRecruiter"), true);
     assert.equal(questions[1]?.date, "2026-10-15");
     assert.equal(isOpenStatus(questions[0]?.status ?? ""), true);
     assert.equal(isOpenStatus(questions[1]?.status ?? ""), false);
@@ -125,6 +129,8 @@ describe("pending questions", { concurrency: false }, () => {
     const open = questions.filter((question) => isOpenStatus(question.status));
     assert.equal(open.length, 2);
     assert.equal(questions.some((question) => question.status === "Answered"), true);
+    assert.equal(questions.filter((question) => question.source === "LinkedIn").length >= 1, true);
+    assert.equal(questions.some((question) => question.source === "ZipRecruiter"), true);
     assert.equal(isDoneStatus("Done"), true);
     assert.equal(isDoneStatus("done "), true);
     assert.equal(isDoneStatus("Answered"), false);
@@ -153,6 +159,29 @@ describe("pending questions", { concurrency: false }, () => {
       if (previous) store.answers[row] = previous;
       else delete store.answers[row];
     }
+  });
+});
+
+describe("question source", () => {
+  it("reads Source by header and treats a blank as ZipRecruiter", () => {
+    const rows = [
+      ["Date", "Job/Company", "Question", "Answer", "Status", "Source"],
+      ["2026-10-16", "Acme — PM", "Can I say yes?", "", "Open", ""],
+      ["2026-10-16", "Northwind", "Salary?", "", "Answered", "ZipRecruiter"],
+      ["2026-10-16", "Initech", "Start date?", "Monday", "Answered", "linkedin"],
+      ["2026-10-16", "Hooli", "Remote?", "", "Done", "LinkedIn"],
+    ];
+    const columns = locateQuestionColumns(rows);
+    assert.equal(columns?.source, 5);
+    const questions = parseQuestions(rows);
+    assert.deepEqual(
+      questions.map((question) => question.source),
+      ["ZipRecruiter", "ZipRecruiter", "LinkedIn", "LinkedIn"],
+    );
+    assert.equal(questionSourceLabel("  "), "ZipRecruiter");
+    assert.equal(isAnsweredStatus("Answered"), true);
+    assert.equal(isAnsweredStatus("Open"), false);
+    assert.equal(isAnsweredStatus("Done"), false);
   });
 });
 

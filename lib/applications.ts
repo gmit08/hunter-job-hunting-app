@@ -30,6 +30,7 @@ export type Question = {
   question: string;
   answer: string;
   status: string;
+  source: string;
 };
 
 export type QuestionColumns = {
@@ -39,6 +40,7 @@ export type QuestionColumns = {
   question: number;
   answer: number;
   status: number;
+  source: number;
 };
 
 export type ScoringRule = {
@@ -108,7 +110,7 @@ const FIELD_TESTS: { key: SemanticKey; test: (header: string) => boolean }[] = [
   },
 ];
 
-type QuestionKey = "date" | "job" | "question" | "answer" | "status";
+type QuestionKey = "date" | "job" | "question" | "answer" | "status" | "source";
 
 const QUESTION_TESTS: { key: QuestionKey; test: (header: string) => boolean }[] = [
   { key: "date", test: (header) => header === "date" },
@@ -119,6 +121,7 @@ const QUESTION_TESTS: { key: QuestionKey; test: (header: string) => boolean }[] 
   { key: "question", test: (header) => header === "question" },
   { key: "answer", test: (header) => header === "answer" },
   { key: "status", test: (header) => header === "status" },
+  { key: "source", test: (header) => header === "source" },
 ];
 
 const TIME_ZONE = "America/New_York";
@@ -190,6 +193,17 @@ export function isOpenStatus(status: string): boolean {
 
 export function isDoneStatus(status: string): boolean {
   return status.trim().toLowerCase() === "done";
+}
+
+export function isAnsweredStatus(status: string): boolean {
+  return status.trim().toLowerCase() === "answered";
+}
+
+export function questionSourceLabel(source: string | undefined): string {
+  const text = source?.trim() ?? "";
+  if (!text || text.toLowerCase() === "ziprecruiter") return "ZipRecruiter";
+  if (text.toLowerCase() === "linkedin") return "LinkedIn";
+  return text;
 }
 
 export function sameText(left: string, right: string): boolean {
@@ -387,6 +401,7 @@ export function locateQuestionColumns(rows: unknown[][]): QuestionColumns | null
     question: questionColumn(headers, "question"),
     answer: questionColumn(headers, "answer"),
     status: questionColumn(headers, "status"),
+    source: questionColumn(headers, "source"),
   };
 }
 
@@ -400,9 +415,10 @@ export function parseQuestions(rows: unknown[][]): Question[] {
     const job = columns.job >= 0 ? cellToString(row[columns.job]) : "";
     const answer = columns.answer >= 0 ? cellToString(row[columns.answer]) : "";
     const status = columns.status >= 0 ? cellToString(row[columns.status]) : "";
+    const source = columns.source >= 0 ? cellToString(row[columns.source]) : "";
     const dateValue = columns.date >= 0 ? row[columns.date] : "";
     const date = parseSheetDate(dateValue) ?? cellToString(dateValue);
-    if (!question && !job && !answer && !status) continue;
+    if (!question && !job && !answer && !status && !source) continue;
     questions.push({
       row: index + 1,
       date,
@@ -410,6 +426,7 @@ export function parseQuestions(rows: unknown[][]): Question[] {
       question,
       answer,
       status,
+      source: questionSourceLabel(source),
     });
   }
   return questions;

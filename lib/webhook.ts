@@ -211,6 +211,43 @@ export async function triggerAnswers(options: {
   });
 }
 
+type LinkedInAnswersEnv = {
+  LINKEDIN_ANSWERS_WEBHOOK_URL?: string;
+  LINKEDIN_ANSWERS_WEBHOOK_KEY?: string;
+  WEBHOOK_KEY_HEADER?: string;
+  WEBHOOK_KEY_SCHEME?: string;
+  WEBHOOK_KEY_BODY_FIELD?: string;
+};
+
+export async function triggerLinkedInAnswers(
+  options: {
+    fetchImpl?: typeof fetch;
+    env?: LinkedInAnswersEnv;
+    production?: boolean;
+  } = {},
+): Promise<AnswersResult> {
+  const env = options.env ?? process.env;
+  const built = buildWebhookRequest({
+    url: env.LINKEDIN_ANSWERS_WEBHOOK_URL,
+    key: env.LINKEDIN_ANSWERS_WEBHOOK_KEY,
+    header: env.WEBHOOK_KEY_HEADER,
+    scheme: env.WEBHOOK_KEY_SCHEME,
+    bodyField: env.WEBHOOK_KEY_BODY_FIELD,
+    production: options.production ?? process.env.NODE_ENV === "production",
+    action: "answers",
+    source: "hunter",
+    urlLabel: "LINKEDIN_ANSWERS_WEBHOOK_URL",
+    keyLabel: "LINKEDIN_ANSWERS_WEBHOOK_KEY",
+    missingMessage:
+      "LinkedIn answers are not set up yet. Add LINKEDIN_ANSWERS_WEBHOOK_URL and LINKEDIN_ANSWERS_WEBHOOK_KEY on the server, then try again.",
+  });
+  return deliverWebhook(built, options.fetchImpl ?? fetch, {
+    success: "Your assistant was asked to submit the saved answers.",
+    rejected: (status) => `Your assistant was not notified. The webhook replied with status ${status}.`,
+    unreachable: "Your assistant was not notified. The webhook could not be reached.",
+  });
+}
+
 type ThreeDayCheckEnv = {
   THREEDAYCHECK_WEBHOOK_URL?: string;
   THREEDAYCHECK_WEBHOOK_KEY?: string;
