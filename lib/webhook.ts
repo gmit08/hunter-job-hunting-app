@@ -132,7 +132,45 @@ export async function triggerBacklog(): Promise<{ ok: true; message: string } | 
 const ANSWERS_MISSING =
   "Send all answers is not set up yet. Add ANSWERS_WEBHOOK_URL and ANSWERS_WEBHOOK_KEY on the server, then try again.";
 
-export type AnswersResult = { ok: true; message: string } | { ok: false; message: string; unconfigured?: boolean };
+const THREE_DAY_CHECK_MISSING =
+  "The 3-day check is not configured. Add THREEDAYCHECK_WEBHOOK_URL and THREEDAYCHECK_WEBHOOK_KEY on the server, then try again.";
+
+export type WebhookPingResult = { ok: true; message: string } | { ok: false; message: string; unconfigured?: boolean };
+
+export type AnswersResult = WebhookPingResult;
+
+type PingMessages = {
+  success: string;
+  rejected: (status: number) => string;
+  unreachable: string;
+};
+
+async function deliverWebhook(
+  built: { ok: true; request: WebhookRequest } | WebhookFailure,
+  fetchImpl: typeof fetch,
+  messages: PingMessages,
+): Promise<WebhookPingResult> {
+  if (!built.ok) {
+    return { ok: false, message: built.message, unconfigured: built.code === "unconfigured" };
+  }
+
+  try {
+    const response = await fetchImpl(built.request.url, {
+      method: "POST",
+      headers: built.request.headers,
+      body: JSON.stringify(built.request.body),
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(25000),
+    });
+    if (!response.ok) {
+      return { ok: false, message: messages.rejected(response.status) };
+    }
+    return { ok: true, message: messages.success };
+  } catch {
+    return { ok: false, message: messages.unreachable };
+  }
+}
 
 type AnswersEnv = {
   ANSWERS_WEBHOOK_URL?: string;
@@ -166,27 +204,45 @@ export async function triggerAnswers(options: {
     keyLabel: "ANSWERS_WEBHOOK_KEY",
     missingMessage: ANSWERS_MISSING,
   });
-  if (!built.ok) {
-    return { ok: false, message: built.message, unconfigured: built.code === "unconfigured" };
-  }
+  return deliverWebhook(built, options.fetchImpl ?? fetch, {
+    success: "Your assistant was asked to submit the saved answers.",
+    rejected: (status) => `Your assistant was not notified. The webhook replied with status ${status}.`,
+    unreachable: "Your assistant was not notified. The webhook could not be reached.",
+  });
+}
 
-  try {
-    const response = await (options.fetchImpl ?? fetch)(built.request.url, {
-      method: "POST",
-      headers: built.request.headers,
-      body: JSON.stringify(built.request.body),
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(25000),
-    });
-    if (!response.ok) {
-      return {
-        ok: false,
-        message: `Your assistant was not notified. The webhook replied with status ${response.status}.`,
-      };
-    }
-    return { ok: true, message: "Your assistant was asked to submit the saved answers." };
-  } catch {
-    return { ok: false, message: "Your assistant was not notified. The webhook could not be reached." };
-  }
+type ThreeDayCheckEnv = {
+  THREEDAYCHECK_WEBHOOK_URL?: string;
+  THREEDAYCHECK_WEBHOOK_KEY?: string;
+  WEBHOOK_KEY_HEADER?: string;
+  WEBHOOK_KEY_SCHEME?: string;
+  WEBHOOK_KEY_BODY_FIELD?: string;
+};
+
+export async function triggerThreeDayCheck(
+  options: {
+    fetchImpl?: typeof fetch;
+    env?: ThreeDayCheckEnv;
+    production?: boolean;
+  } = {},
+): Promise<WebhookPingResult> {
+  const env = options.env ?? process.env;
+  const built = buildWebhookRequest({
+    url: env.THREEDAYCHECK_WEBHOOK_URL,
+    key: env.THREEDAYCHECK_WEBHOOK_KEY,
+    header: env.WEBHOOK_KEY_HEADER,
+    scheme: env.WEBHOOK_KEY_SCHEME,
+    bodyField: env.WEBHOOK_KEY_BODY_FIELD,
+    production: options.production ?? process.env.NODE_ENV === "production",
+    action: "3daycheck",
+    source: "hunter",
+    urlLabel: "THREEDAYCHECK_WEBHOOK_URL",
+    keyLabel: "THREEDAYCHECK_WEBHOOK_KEY",
+    missingMessage: THREE_DAY_CHECK_MISSING,
+  });
+  return deliverWebhook(built, options.fetchImpl ?? fetch, {
+    success: "3-day check started, results land in your tracker shortly",
+    rejected: (status) => `The 3-day check did not start. The webhook replied with status ${status}.`,
+    unreachable: "The 3-day check did not start. The webhook could not be reached.",
+  });
 }

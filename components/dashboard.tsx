@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatShortDate, type Application } from "@/lib/applications";
 import type { DashboardData } from "@/lib/mock-data";
@@ -12,6 +12,36 @@ import { postJson, SignInRequired } from "@/components/api-client";
 import { formatScore, statusColor, StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { isOpenStatus } from "@/lib/applications";
+import {
+  QUESTIONS_UPDATED_TOAST,
+  THREE_DAY_CHECK_ERROR_TOAST,
+  THREE_DAY_CHECK_POLL_MS,
+  THREE_DAY_CHECK_WAIT_MS,
+  THREE_DAY_CHECK_WORKING_TOAST,
+  completionIsNewer,
+} from "@/lib/three-day-check";
+
+type ToastTone = "success" | "danger" | "working" | "warning";
+type Toast = { tone: ToastTone; message: string };
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function readThreeDayCheckCompletion(): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await fetch("/api/three-day-check", { method: "GET", cache: "no-store" });
+  } catch {
+    throw new Error("The dashboard could not reach the server.");
+  }
+  const payload = (await response.json().catch(() => null)) as { ok?: boolean; completedAt?: unknown } | null;
+  if (response.status === 401) throw new SignInRequired();
+  if (!response.ok || payload?.ok === false) throw new Error("The 3-day check status could not be read.");
+  return typeof payload?.completedAt === "string" ? payload.completedAt : null;
+}
 
 export function Dashboard({
   data,
@@ -23,13 +53,22 @@ export function Dashboard({
   const router = useRouter();
   const [selected, setSelected] = useState<Application | null>(null);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const checkRunRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      checkRunRef.current += 1;
+    };
+  }, []);
   const highest = data.summary.top[0];
   const showSetup = data.source !== "sheet" || !passwordProtected || !data.webhookReady;
   const openCount = data.questions.filter((question) => isOpenStatus(question.status)).length;
 
-  function showToast(next: { ok: boolean; message: string }) {
+  function showToast(next: Toast, persist = false) {
     setToast(next);
+    if (persist) return;
     window.setTimeout(() => setToast((current) => (current === next ? null : current)), 4500);
   }
 
@@ -38,18 +77,54 @@ export function Dashboard({
     setSending(true);
     try {
       const result = await postJson<{ message: string }>("/api/answers", {});
-      showToast({ ok: true, message: result.message });
+      showToast({ tone: "success", message: result.message });
     } catch (caught) {
       if (caught instanceof SignInRequired) {
         router.push("/login");
         return;
       }
       showToast({
-        ok: false,
+        tone: "danger",
         message: caught instanceof Error ? caught.message : "Your assistant was not notified.",
       });
     } finally {
       setSending(false);
+    }
+  }
+
+  async function runThreeDayCheck() {
+    if (checking) return;
+    const run = ++checkRunRef.current;
+    const clickedAt = Date.now();
+    const deadline = clickedAt + THREE_DAY_CHECK_WAIT_MS;
+    const alive = () => run === checkRunRef.current;
+    setChecking(true);
+    showToast({ tone: "working", message: THREE_DAY_CHECK_WORKING_TOAST }, true);
+    try {
+      await postJson<{ message: string }>("/api/three-day-check", {});
+      while (alive() && Date.now() < deadline) {
+        const completedAt = await readThreeDayCheckCompletion();
+        if (!alive()) return;
+        if (completionIsNewer(completedAt, clickedAt)) {
+          router.refresh();
+          showToast({ tone: "success", message: QUESTIONS_UPDATED_TOAST });
+          return;
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
+        await delay(Math.min(THREE_DAY_CHECK_POLL_MS, remaining));
+      }
+      if (!alive()) return;
+      showToast({ tone: "warning", message: THREE_DAY_CHECK_ERROR_TOAST });
+    } catch (caught) {
+      if (!alive()) return;
+      if (caught instanceof SignInRequired) {
+        router.push("/login");
+        return;
+      }
+      showToast({ tone: "warning", message: THREE_DAY_CHECK_ERROR_TOAST });
+    } finally {
+      if (alive()) setChecking(false);
     }
   }
 
@@ -69,7 +144,13 @@ export function Dashboard({
               <ErrorBanner data={data} onRetry={() => router.refresh()} />
             </div>
           ) : (
-            <QuestionWizard questions={data.questions} sending={sending} onSend={sendAnswers} />
+            <QuestionWizard
+              questions={data.questions}
+              sending={sending}
+              onSend={sendAnswers}
+              checking={checking}
+              onCheck={runThreeDayCheck}
+            />
           )}
         </div>
 
@@ -235,7 +316,13 @@ export function Dashboard({
         <p
           role="status"
           className={`fixed top-20 left-1/2 z-50 w-[min(24rem,calc(100%-2rem))] -translate-x-1/2 rounded-2xl px-4 py-3 text-sm shadow-lg ring-1 ${
-            toast.ok ? "bg-card text-primary ring-primary/20" : "bg-card text-destructive ring-destructive/20"
+            toast.tone === "success"
+              ? "bg-card text-primary ring-primary/20"
+              : toast.tone === "danger"
+                ? "bg-card text-destructive ring-destructive/20"
+                : toast.tone === "warning"
+                  ? "bg-card text-orange-700 ring-orange-700/30"
+                  : "bg-card text-foreground ring-foreground/10"
           }`}
         >
           {toast.message}
