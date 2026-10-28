@@ -178,6 +178,7 @@ type AnswersEnv = {
   WEBHOOK_KEY_HEADER?: string;
   WEBHOOK_KEY_SCHEME?: string;
   WEBHOOK_KEY_BODY_FIELD?: string;
+  [key: string]: string | undefined;
 };
 
 export function answersStatus(result: { ok: boolean; unconfigured?: boolean }): number {
@@ -217,6 +218,7 @@ type LinkedInAnswersEnv = {
   WEBHOOK_KEY_HEADER?: string;
   WEBHOOK_KEY_SCHEME?: string;
   WEBHOOK_KEY_BODY_FIELD?: string;
+  [key: string]: string | undefined;
 };
 
 export async function triggerLinkedInAnswers(
