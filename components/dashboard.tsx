@@ -23,6 +23,7 @@ export function Dashboard({
   const router = useRouter();
   const [selected, setSelected] = useState<Application | null>(null);
   const [sending, setSending] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(null);
   const highest = data.summary.top[0];
   const showSetup = data.source !== "sheet" || !passwordProtected || !data.webhookReady;
@@ -53,6 +54,26 @@ export function Dashboard({
     }
   }
 
+  async function runThreeDayCheck() {
+    if (checking) return;
+    setChecking(true);
+    try {
+      const result = await postJson<{ message: string }>("/api/three-day-check", {});
+      showToast({ ok: true, message: result.message });
+    } catch (caught) {
+      if (caught instanceof SignInRequired) {
+        router.push("/login");
+        return;
+      }
+      showToast({
+        ok: false,
+        message: caught instanceof Error ? caught.message : "The 3-day check did not start.",
+      });
+    } finally {
+      setChecking(false);
+    }
+  }
+
   return (
     <div className="coarse-page-pad min-h-full">
       <AppMenu
@@ -69,7 +90,13 @@ export function Dashboard({
               <ErrorBanner data={data} onRetry={() => router.refresh()} />
             </div>
           ) : (
-            <QuestionWizard questions={data.questions} sending={sending} onSend={sendAnswers} />
+            <QuestionWizard
+              questions={data.questions}
+              sending={sending}
+              onSend={sendAnswers}
+              checking={checking}
+              onCheck={runThreeDayCheck}
+            />
           )}
         </div>
 

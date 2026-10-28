@@ -18,6 +18,7 @@ The sheet is the record. The dashboard is how I look at it and talk back.
 
 - **Questions first.** Pending questions are a stack of cards. I only deal with the top card. It shows the date, the job and company, and the question. On a desktop keyboard, Enter saves that answer and the next open card slides in. Shift+Enter adds a new line. On a phone or tablet, Return starts a new line and never saves. Next is the only control that saves and moves on. That follows the pointer, not the window width, so a narrow desktop window still saves on Enter. Skip puts an open card at the back of the stack for this sitting. It writes nothing, and the count does not change. If every open card left has been skipped, they keep coming around. Back steps to the previous card, with the saved answer filled in so I can edit it. I can walk back through every card that has not been sent yet: the ones I saved this sitting, in the order I saved them, then the other saved rows in sheet order. Once my assistant marks a row Done, that card leaves the stack. The count above the stack is how many are still open. On a phone, that stack is the whole first screen.
 - **Send all answers now.** Each answer is already in the sheet before I press this. On a desktop the button stays in the corner. On a phone it stays in a bar at the bottom, including while cards are still open, and the completion card offers it again when the last open card is done. It asks the server to ping my assistant so those answers get submitted now. The ping does not include the answer text. If the answers webhook is not configured, the page says so.
+- **3-day check.** A grey refresh icon sits on the same line as the remaining count, on a desktop and on a phone. A short confirm step, styled like Skip, keeps a stray tap from starting it. The server then pings my assistant. That run walks open questions oldest first, checks whether each job older than three days is still posted, and marks dead postings Abandoned in the sheet. The ping is `action: 3daycheck` and `source: hunter`. It does not include question text, job names, or anything else from the sheet. If that webhook is not configured, the page says so.
 - **Visibility.** Totals, applications from this week, the status mix, the average desirability score, the highest-scoring roles, and a searchable table with the notes behind each row. On a phone I reach them by scrolling, or from the menu.
 - **One menu.** Pause, Run backlog, and the section links live in a menu at the top right. There is no row of links across the header. The webhook address and the secret never reach the browser.
 
@@ -33,7 +34,9 @@ The sheet is the record. The dashboard is how I look at it and talk back.
 
 **Send all is a ping, not a second copy of the answers.** The button does not wait until the stack is empty, and it does not resend the text. The server POSTs `action: answers-ready` and `source: hunter` to `ANSWERS_WEBHOOK_URL`. The key uses the same header, scheme, or body field as the backlog key. The answer text is never in that body. My assistant reads the sheet and submits what is already there.
 
-**The webhook secret stays on the server.** Run now and Send all answers are server POSTs. The header name, and whether the key is sent as a bearer token, a raw header, or a JSON field, are settings shared by both calls. I did not want to rebuild the agent endpoint to match the dashboard. A deployed site requires https.
+**The 3-day check is the same kind of ping.** The refresh icon does not read the sheet. The server POSTs `action: 3daycheck` and `source: hunter` to `THREEDAYCHECK_WEBHOOK_URL`. The key uses the same header, scheme, or body field as the other webhooks. My assistant does the triage and writes Abandoned on the sheet.
+
+**The webhook secret stays on the server.** Run now, Send all answers, and the 3-day check are server POSTs. The header name, and whether the key is sent as a bearer token, a raw header, or a JSON field, are settings shared by all three calls. I did not want to rebuild the agent endpoint to match the dashboard. A deployed site requires https.
 
 **One shared password, not accounts.** This is a single-operator tool. A password cookie is enough, and there is no user table. If the password is unset, the page stays open and says so. That is useful on my own machine, and the wrong setting for a shared link.
 
@@ -90,7 +93,9 @@ Put these in `.env.local` on your computer, and in Vercel’s environment variab
 | `WEBHOOK_KEY` | Yes, for Run now | Server-side secret for that call. |
 | `ANSWERS_WEBHOOK_URL` | Yes, for Send all answers now | Server-side address that pings the assistant. The answer text is not sent. |
 | `ANSWERS_WEBHOOK_KEY` | Yes, for Send all answers now | Server-side secret for that ping. |
-| `WEBHOOK_KEY_HEADER` | No | Header that carries either key. Default: `Authorization`. Use `none` to skip the header. |
+| `THREEDAYCHECK_WEBHOOK_URL` | Yes, for the 3-day check | Server-side address that starts the check. The body is only `action` and `source`. |
+| `THREEDAYCHECK_WEBHOOK_KEY` | Yes, for the 3-day check | Server-side secret for that ping. It is never written to logs or sent to the browser. |
+| `WEBHOOK_KEY_HEADER` | No | Header that carries each key. Default: `Authorization`. Use `none` to skip the header. |
 | `WEBHOOK_KEY_SCHEME` | No | Prefix for the key. Default: `Bearer`. Use `raw` to send the key alone. |
 | `WEBHOOK_KEY_BODY_FIELD` | No | If set, the key is also placed in the JSON body under this field name. |
 
@@ -100,7 +105,7 @@ The browser never receives the webhook addresses or keys.
 - A custom header with the key alone: set `WEBHOOK_KEY_HEADER` to the header name and `WEBHOOK_KEY_SCHEME` to `raw`.
 - The key in the JSON body instead of a header: `WEBHOOK_KEY_HEADER=none` and `WEBHOOK_KEY_BODY_FIELD` set to the field name.
 
-On a deployed site both webhook addresses must start with `https://`.
+On a deployed site each webhook address must start with `https://`.
 
 ### Connect a Google Sheet
 

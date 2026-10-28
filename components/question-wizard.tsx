@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatShortDate, isDoneStatus, isOpenStatus, type Question } from "@/lib/applications";
 import {
@@ -18,6 +19,103 @@ import { postJson, SignInRequired } from "@/components/api-client";
 import { Button } from "@/components/ui/button";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
+const THREE_DAY_CHECK_LABEL = "Run 3-day check: drop questions for closed jobs";
+
+function ThreeDayCheckButton({ checking, onCheck }: { checking: boolean; onCheck: () => void }) {
+  const panelId = useId();
+  const [confirming, setConfirming] = useState(false);
+  const locked = useRef(false);
+
+  useEffect(() => {
+    if (!checking) locked.current = false;
+  }, [checking]);
+
+  useEffect(() => {
+    if (!confirming) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setConfirming(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirming]);
+
+  function run() {
+    if (locked.current || checking) return;
+    locked.current = true;
+    setConfirming(false);
+    onCheck();
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        className="grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-60"
+        aria-label={checking ? "Running 3-day check" : THREE_DAY_CHECK_LABEL}
+        title={THREE_DAY_CHECK_LABEL}
+        aria-expanded={confirming}
+        aria-controls={panelId}
+        aria-busy={checking}
+        disabled={checking}
+        onClick={() => setConfirming((open) => !open)}
+      >
+        <RefreshCw className={checking ? "size-5 animate-spin motion-reduce:animate-none" : "size-5"} aria-hidden="true" />
+      </button>
+      {confirming && !checking ? (
+        <div
+          id={panelId}
+          role="dialog"
+          aria-label="Confirm 3-day check"
+          className="absolute top-full right-0 z-20 mt-2 w-56 rounded-2xl bg-card p-3 text-sm shadow-lg ring-1 ring-foreground/10"
+        >
+          <p className="leading-5 text-muted-foreground">Drop questions for jobs that are no longer posted?</p>
+          <div className="mt-2 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              onClick={run}
+            >
+              Run check
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RemainingHeader({
+  count,
+  large,
+  checking,
+  onCheck,
+}: {
+  count: number;
+  large?: boolean;
+  checking: boolean;
+  onCheck: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <p
+        className={`min-w-0 font-heading leading-none font-medium tracking-tight whitespace-nowrap ${
+          large ? "text-4xl lg:text-5xl" : "text-4xl"
+        }`}
+      >
+        {count}{" "}
+        <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
+      </p>
+      <ThreeDayCheckButton checking={checking} onCheck={onCheck} />
+    </div>
+  );
+}
 
 function questionParts(text: string): { type: "text" | "link"; value: string }[] {
   const parts: { type: "text" | "link"; value: string }[] = [];
@@ -39,10 +137,14 @@ export function QuestionWizard({
   questions,
   sending,
   onSend,
+  checking,
+  onCheck,
 }: {
   questions: Question[];
   sending: boolean;
   onSend: () => void;
+  checking: boolean;
+  onCheck: () => void;
 }) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Record<number, string>>({});
@@ -162,9 +264,7 @@ export function QuestionWizard({
   if (!current) {
     return (
       <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
-        <p className="font-heading text-4xl leading-none font-medium tracking-tight">
-          0 <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
-        </p>
+        <RemainingHeader count={0} checking={checking} onCheck={onCheck} />
         <p className="mt-2 text-sm text-muted-foreground">The last card is answered.</p>
         <article className="mt-5 rounded-3xl bg-card p-6 ring-1 ring-foreground/10">
           <div className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
@@ -201,10 +301,7 @@ export function QuestionWizard({
 
   return (
     <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
-      <p className="font-heading text-4xl leading-none font-medium tracking-tight lg:text-5xl">
-        {openRows.size}{" "}
-        <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
-      </p>
+      <RemainingHeader count={openRows.size} large checking={checking} onCheck={onCheck} />
 
       <div className="relative mt-5 pb-6">
         {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
