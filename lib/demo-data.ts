@@ -76,7 +76,7 @@ function applicationRows(now: Date): unknown[][] {
 
   return [
     HEADERS,
-    row(1, "Willowbrook Health", "Clinical Pharmacist", "Interview", 176, 91, "Cedar Hollow, Colorado", "Hybrid", "Y", "$158,000–$172,000", "https://example.com/jobs/willowbrook", daysAgo(1, now), "Panel interview Thursday. Review anticoagulation cases and the residency project.", 20),
+    row(1, "Willowbrook Health", "Clinical Pharmacist", "Interview", 176, 91, "Cedar Hollow, Colorado", "Hybrid", "Y", "$158,000–$172,000", "https://example.com/jobs/willowbrook/clinical-pharmacist/panel-interview-cedar-hollow-anticoagulation-cases-residency-project-loan-repayment", daysAgo(1, now), "Panel interview Thursday. Review anticoagulation cases and the residency project.", 20),
     row(0, "Northhaven Community Hospital", "Clinical Pharmacist, Evenings", "Applied", 142, 84, "Cedar Hollow, Colorado", "On-site", "NA", "$150,000–$164,000", "https://example.com/jobs/northhaven", "", "Evening block. Benefits include a 403(b) match, no loan repayment.", 0),
     row(2, "Lantern Oncology Partners", "Oncology Pharmacist", "Interview", 188, 93, "Cedar Hollow, Colorado", "Hybrid", "Y", "$162,000–$178,000", "https://example.com/jobs/lantern", daysAgo(2, now), "Second interview next week. Prep the infusion verification scenarios.", 25),
     row(4, "Pineshade Specialty Pharmacy", "Specialty Pharmacist", "Applied", 161, 86, "Remote, Mountain time", "Remote", "Y", "$155,000–$170,000", "https://example.com/jobs/pineshade", "", "Specialty queue for complex oral regimens. Loan repayment is listed.", 40),
@@ -100,11 +100,11 @@ function applicationRows(now: Date): unknown[][] {
 function questionRows(): unknown[][] {
   return [
     ["Date", "Job/Company", "Question", "Answer", "Status", "Source"],
-    ["", "Willowbrook Health — Clinical Pharmacist", "They offered a panel interview Thursday at 2pm Mountain. Should I accept?", "", "Open", ""],
-    ["", "Lantern Oncology Partners — Oncology Pharmacist", "The form asks if you hold a board certification. What should I enter?", "", "Open", "LinkedIn"],
+    ["", "Willowbrook Health — Clinical Pharmacist", "They offered a panel interview Thursday at 2pm Mountain. The posting is https://example.com/jobs/willowbrook/clinical-pharmacist/panel-interview-cedar-hollow-anticoagulation-cases-residency-project. Should I accept?", "", "Open", ""],
+    ["", "Quietpine Mail Pharmacy — Remote Medication Therapy Pharmacist", "I could not submit this application. Please apply directly: https://example.com/jobs/quietpine/remote-medication-therapy-pharmacist/apply-yourself-on-the-company-site", "", "Open", "LinkedIn"],
     ["", "Redcedar Ambulatory Clinics — Ambulatory Care Pharmacist", "The form wants a desired salary. Should I enter 158000?", "", "Open", "ZipRecruiter"],
     ["", "Highdesert Therapy Group — Remote Medication Therapy Pharmacist", "They asked which remote hours you can cover. What should I say?", "", "Open", "LinkedIn"],
-    ["", "Pineshade Specialty Pharmacy — Specialty Pharmacist", "Can you take the Colorado license transfer before a start date?", "", "Open", "ZipRecruiter"],
+    ["", "Lantern Oncology Partners — Oncology Pharmacist", "The form asks if you hold a board certification. What should I enter?", "", "Open", "LinkedIn"],
   ];
 }
 
