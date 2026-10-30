@@ -132,6 +132,17 @@
   animation: hunter-card-in 220ms ease-out;
 }
 
+.question-copy {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.question-copy a {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
 .wizard-touch-actions,
 .wizard-touch-hint,
 .send-mobile {

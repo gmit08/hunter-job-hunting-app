@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isOpenStatus } from "./applications";
+import { presentQuestionText } from "./display-text";
 import {
   DEMO_PERSONA,
   DEMO_PERSONA_LINE,
@@ -43,13 +44,28 @@ describe("demo fixture", () => {
     assert.equal(data.applications.some((job) => job.salary.includes("$")), true);
   });
 
-  it("mixes ZipRecruiter and LinkedIn on about five open questions", () => {
+  it("mixes ZipRecruiter and LinkedIn on open questions, including a link column", () => {
     const questions = demoQuestions(now);
     const open = questions.filter((question) => isOpenStatus(question.status));
-    assert.equal(questions.length, 5);
-    assert.equal(open.length, 5);
+    assert.equal(questions.length, 7);
+    assert.equal(open.length, 7);
     assert.equal(questions.some((question) => question.source === "ZipRecruiter"), true);
     assert.equal(questions.some((question) => question.source === "LinkedIn"), true);
+
+    const patterned = questions.find((question) => question.question.includes("no save-draft"));
+    assert.ok(patterned);
+    assert.equal(patterned.link, "");
+    const hidden = presentQuestionText(patterned.question, patterned.link);
+    assert.equal(hidden.text.includes("http"), false);
+    assert.equal(hidden.text.includes("ziprecruiter"), false);
+    assert.equal(hidden.applyHref?.includes("jobs.ashbyhq.com"), true);
+
+    const linked = questions.find((question) => question.link.startsWith("https://"));
+    assert.ok(linked);
+    assert.equal(linked.question.includes("http"), false);
+    const fromColumn = presentQuestionText(linked.question, linked.link);
+    assert.equal(fromColumn.applyHref, linked.link);
+    assert.equal(fromColumn.text.includes("http"), false);
   });
 
   it("does not contain real employers, addresses, or secrets", () => {

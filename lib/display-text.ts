@@ -1,7 +1,15 @@
-const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
+const URL_SOURCE = "https?:\\/\\/[^\\s<>\"']+";
 
-const APPLY_PROMPT =
-  /\b(apply directly|apply yourself|apply on (their|the|company) site|manual apply|please apply|apply here|could not submit|couldn'?t submit|would not submit|won'?t submit|submit (it |this )?yourself)\b/i;
+const DIRECT_APPLY =
+  /\b(apply directly|apply yourself|apply on (their|the|company) site|manual apply|please apply|apply here|could not submit|couldn'?t submit|would not submit|won'?t submit|submit (it |this )?yourself|no save-?draft|isn'?t filled|is not filled|not filled yet|could not fill|couldn'?t fill)\b/i;
+
+const POSTING_LABEL_AT_END =
+  /\b(?:(?:the|a)\s+)?(?:job\s+)?posting(?:\s+is)?\s*:?\s*$|\b(?:the\s+)?(?:link|url)\s+is\s*$/i;
+
+const APPLY_LABEL_AT_END =
+  /\b(?:apply\s+page|application\s+page|apply\s+link|application\s+link|apply)\s*:\s*$/i;
+
+const ATS_HOST = /(?:^|\.)(?:ashbyhq\.com|greenhouse\.io|lever\.co|myworkdayjobs\.com|workday\.com)$/i;
 
 export const APPLY_LINK_LABEL = "Apply on company site";
 
@@ -10,15 +18,73 @@ export function isApplicationLinkField(header: string): boolean {
   return key === "application link" || key === "posting link" || key === "apply link" || key === "job link";
 }
 
+function normalizeCopy(text: string): string {
+  return text.replace(/\u00a0/g, " ").replace(/[\u2018\u2019\u2032]/g, "'");
+}
+
+function trimUrl(url: string): string {
+  return url.replace(/[),.;]+$/g, "");
+}
+
 export function firstUrl(text: string): string | null {
-  const match = text.match(/https?:\/\/[^\s<>"']+/i);
+  const match = normalizeCopy(text).match(new RegExp(URL_SOURCE, "i"));
   if (!match) return null;
-  return match[0].replace(/[),.;]+$/, "");
+  return trimUrl(match[0]);
+}
+
+function isAtsApplyUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (ATS_HOST.test(parsed.hostname)) return true;
+    return /\/application\/?$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+type UrlHit = {
+  start: number;
+  end: number;
+  url: string;
+  kind: "posting" | "apply" | "plain";
+};
+
+function urlHits(text: string): UrlHit[] {
+  const hits: UrlHit[] = [];
+  for (const match of text.matchAll(new RegExp(URL_SOURCE, "gi"))) {
+    const raw = match[0];
+    const urlStart = match.index ?? 0;
+    const urlEnd = urlStart + raw.length;
+    const before = text.slice(0, urlStart);
+    const posting = before.match(POSTING_LABEL_AT_END);
+    const applyLabel = before.match(APPLY_LABEL_AT_END);
+    const url = trimUrl(raw);
+    let kind: UrlHit["kind"] = "plain";
+    let start = urlStart;
+    if (posting && posting.index != null) {
+      kind = "posting";
+      start = posting.index;
+    } else if ((applyLabel && applyLabel.index != null) || isAtsApplyUrl(url)) {
+      kind = "apply";
+      if (applyLabel && applyLabel.index != null) start = applyLabel.index;
+    }
+    let end = urlEnd;
+    const trail = text.slice(urlEnd).match(/^\s+\./);
+    if (trail) end += trail[0].length;
+    hits.push({ start, end, url, kind });
+  }
+  return hits;
+}
+
+function promptsDirectApply(text: string): boolean {
+  return DIRECT_APPLY.test(text);
 }
 
 function tidyStrippedText(text: string): string {
   return text
-    .replace(/\b(the posting is|posting is|the link is|link is|the url is|url is)\s*[.?!]*/gi, "")
+    .replace(/\b(?:(?:the|a)\s+)?(?:job\s+)?posting(?:\s+is)?\s*:\s*/gi, "")
+    .replace(/\b(?:the\s+)?(?:link|url)\s+is\s*/gi, "")
+    .replace(/\b(?:apply\s+page|application\s+page|apply\s+link|application\s+link)\s*:\s*/gi, "")
     .replace(/\s+([?.!,;:])/g, "$1")
     .replace(/([.?!])(?:\s*[.?!])+/g, "$1")
     .replace(/\s{2,}/g, " ")
@@ -26,10 +92,31 @@ function tidyStrippedText(text: string): string {
     .trim();
 }
 
+function textWithoutUrls(text: string, hits: UrlHit[]): string {
+  const ordered = [...hits].sort((left, right) => right.start - left.start);
+  let out = text;
+  for (const hit of ordered) {
+    out = `${out.slice(0, hit.start)} ${out.slice(hit.end)}`;
+  }
+  return tidyStrippedText(out);
+}
+
 export function splitDisplayText(text: string): { text: string; applyHref: string | null } {
-  const href = firstUrl(text);
-  if (!href) return { text: text.trim(), applyHref: null };
-  const applyHref = APPLY_PROMPT.test(text) ? href : null;
-  const stripped = tidyStrippedText(text.replace(URL_PATTERN, " "));
-  return { text: stripped, applyHref };
+  const normalized = normalizeCopy(text);
+  const hits = urlHits(normalized);
+  if (hits.length === 0) return { text: normalized.trim(), applyHref: null };
+  const applyHit = hits.find((hit) => hit.kind === "apply");
+  const plainHit = hits.find((hit) => hit.kind === "plain");
+  const applyHref = promptsDirectApply(normalized) ? (applyHit?.url ?? plainHit?.url ?? null) : null;
+  return { text: textWithoutUrls(normalized, hits), applyHref };
+}
+
+export function presentQuestionText(
+  text: string,
+  link?: string | null,
+): { text: string; applyHref: string | null } {
+  const display = splitDisplayText(text);
+  const columnHref = firstUrl(link ?? "");
+  if (!columnHref) return display;
+  return { text: display.text, applyHref: columnHref };
 }

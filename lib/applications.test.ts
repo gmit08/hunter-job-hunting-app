@@ -113,6 +113,7 @@ describe("pending questions", { concurrency: false }, () => {
       answer: 1,
       status: 0,
       source: -1,
+      link: -1,
     });
     const questions = parseQuestions(rows);
     assert.equal(questions.length, 3);
@@ -179,9 +180,33 @@ describe("question source", () => {
       ["ZipRecruiter", "ZipRecruiter", "LinkedIn", "LinkedIn"],
     );
     assert.equal(questionSourceLabel("  "), "ZipRecruiter");
+    assert.equal(questions.every((question) => question.link === ""), true);
     assert.equal(isAnsweredStatus("Answered"), true);
     assert.equal(isAnsweredStatus("Open"), false);
     assert.equal(isAnsweredStatus("Done"), false);
+  });
+});
+
+describe("question link column", () => {
+  it("reads Link by header and leaves the field blank when the column is missing", () => {
+    const apply = "https://jobs.ashbyhq.com/example-co/11111111-2222-4333-8444-555555555555/application";
+    const withLink = parseQuestions([
+      ["Question", "Status", "Link", "Job/Company"],
+      ["What should I enter?", "Open", apply, "Example Clinic — Pharmacist"],
+      ["Can I say yes?", "Open", "", "Example Clinic — Pharmacist"],
+    ]);
+    assert.equal(withLink[0]?.link, apply);
+    assert.equal(withLink[1]?.link, "");
+
+    const missing = parseQuestions([
+      ["Date", "Job/Company", "Question", "Answer", "Status", "Source"],
+      ["2026-10-16", "Example Clinic", "Can I say yes?", "", "Open", ""],
+    ]);
+    assert.equal(locateQuestionColumns([
+      ["Date", "Job/Company", "Question", "Answer", "Status", "Source"],
+    ])?.link, -1);
+    assert.equal(missing[0]?.link, "");
+    assert.equal(missing[0]?.question, "Can I say yes?");
   });
 });
 

@@ -18,28 +18,25 @@ import {
 import { postJson, SignInRequired } from "@/components/api-client";
 import { SourcePill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
-import { APPLY_LINK_LABEL, splitDisplayText } from "@/lib/display-text";
+import { APPLY_LINK_LABEL, presentQuestionText } from "@/lib/display-text";
 import { THREE_DAY_CHECK_WORKING_TOAST } from "@/lib/three-day-check";
 
 const THREE_DAY_CHECK_LABEL = "Run 3-day check: drop questions for closed jobs";
 
-function DisplayCopy({ text }: { text: string }) {
-  const display = splitDisplayText(text);
+function DisplayCopy({ text, link }: { text: string; link?: string }) {
+  const display = presentQuestionText(text, link);
   return (
     <>
       {display.text}
       {display.applyHref ? (
-        <>
-          {display.text ? " " : null}
-          <a
-            href={display.applyHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-primary underline underline-offset-2"
-          >
-            {APPLY_LINK_LABEL}
-          </a>
-        </>
+        <a
+          href={display.applyHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 block w-fit max-w-full min-w-0 font-medium break-all text-primary underline underline-offset-2 [overflow-wrap:anywhere]"
+        >
+          {APPLY_LINK_LABEL}
+        </a>
       ) : null}
     </>
   );
@@ -226,7 +223,7 @@ export function QuestionWizard({
 
   if (!current) {
     return (
-      <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-6 lg:pt-8">
+      <section id="questions" className="scroll-mt-24 min-w-0 max-w-full overflow-x-hidden px-4 pt-5 lg:px-6 lg:pt-8">
         <RemainingHeader count={0} checking={checking} onCheck={onCheck} />
         <p className="mt-2 text-sm text-muted-foreground">The last card is answered.</p>
         <article className="mt-5 rounded-3xl bg-card p-6 ring-1 ring-foreground/10">
@@ -263,10 +260,10 @@ export function QuestionWizard({
   const shown = textFor(current);
 
   return (
-    <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-6 lg:pt-8">
+    <section id="questions" className="scroll-mt-24 min-w-0 max-w-full overflow-x-hidden px-4 pt-5 lg:px-6 lg:pt-8">
       <RemainingHeader count={openRows.size} large checking={checking} onCheck={onCheck} />
 
-      <div className="relative mt-5 pb-6">
+      <div className="relative mt-5 min-w-0 max-w-full pb-6">
         {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
         {order.length > 1 ? <div className="absolute inset-x-2.5 top-2.5 bottom-2 rounded-3xl bg-card ring-1 ring-foreground/10" /> : null}
         <article key={current.row} className="hunter-card relative min-w-0 overflow-hidden rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
@@ -277,9 +274,9 @@ export function QuestionWizard({
           <h2 className="mt-2 break-words font-heading text-3xl leading-tight font-medium tracking-tight [overflow-wrap:anywhere]">
             {current.job || "A job"}
           </h2>
-          <p className="mt-4 text-base leading-7 break-words [overflow-wrap:anywhere]">
-            <DisplayCopy text={current.question} />
-          </p>
+          <div className="question-copy mt-4 min-w-0 max-w-full text-base leading-7">
+            <DisplayCopy text={current.question} link={current.link} />
+          </div>
           <label className="mt-4 block">
             <span className="sr-only">Answer for {current.job || "this question"}</span>
             <textarea
@@ -376,9 +373,9 @@ export function AnsweredQuestions({ questions }: { questions: Question[] }) {
                 <SourcePill source={question.source} />
               </div>
               <p className="mt-1 break-words font-medium [overflow-wrap:anywhere]">{question.job || "A job"}</p>
-              <p className="mt-1 break-words text-muted-foreground [overflow-wrap:anywhere]">
-                <DisplayCopy text={question.question} />
-              </p>
+              <div className="question-copy mt-1 min-w-0 max-w-full text-muted-foreground">
+                <DisplayCopy text={question.question} link={question.link} />
+              </div>
               <p className="mt-2 break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
                 <DisplayCopy text={question.answer || "No answer text."} />
               </p>
