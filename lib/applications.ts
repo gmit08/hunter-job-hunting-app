@@ -31,6 +31,7 @@ export type Question = {
   answer: string;
   status: string;
   source: string;
+  link: string;
 };
 
 export type QuestionColumns = {
@@ -41,6 +42,7 @@ export type QuestionColumns = {
   answer: number;
   status: number;
   source: number;
+  link: number;
 };
 
 export type ScoringRule = {
@@ -110,7 +112,7 @@ const FIELD_TESTS: { key: SemanticKey; test: (header: string) => boolean }[] = [
   },
 ];
 
-type QuestionKey = "date" | "job" | "question" | "answer" | "status" | "source";
+type QuestionKey = "date" | "job" | "question" | "answer" | "status" | "source" | "link";
 
 const QUESTION_TESTS: { key: QuestionKey; test: (header: string) => boolean }[] = [
   { key: "date", test: (header) => header === "date" },
@@ -122,6 +124,7 @@ const QUESTION_TESTS: { key: QuestionKey; test: (header: string) => boolean }[] 
   { key: "answer", test: (header) => header === "answer" },
   { key: "status", test: (header) => header === "status" },
   { key: "source", test: (header) => header === "source" },
+  { key: "link", test: (header) => header === "link" },
 ];
 
 const TIME_ZONE = "America/New_York";
@@ -402,6 +405,7 @@ export function locateQuestionColumns(rows: unknown[][]): QuestionColumns | null
     answer: questionColumn(headers, "answer"),
     status: questionColumn(headers, "status"),
     source: questionColumn(headers, "source"),
+    link: questionColumn(headers, "link"),
   };
 }
 
@@ -416,9 +420,10 @@ export function parseQuestions(rows: unknown[][]): Question[] {
     const answer = columns.answer >= 0 ? cellToString(row[columns.answer]) : "";
     const status = columns.status >= 0 ? cellToString(row[columns.status]) : "";
     const source = columns.source >= 0 ? cellToString(row[columns.source]) : "";
+    const link = columns.link >= 0 ? cellToString(row[columns.link]) : "";
     const dateValue = columns.date >= 0 ? row[columns.date] : "";
     const date = parseSheetDate(dateValue) ?? cellToString(dateValue);
-    if (!question && !job && !answer && !status && !source) continue;
+    if (!question && !job && !answer && !status && !source && !link) continue;
     questions.push({
       row: index + 1,
       date,
@@ -427,6 +432,7 @@ export function parseQuestions(rows: unknown[][]): Question[] {
       answer,
       status,
       source: questionSourceLabel(source),
+      link,
     });
   }
   return questions;

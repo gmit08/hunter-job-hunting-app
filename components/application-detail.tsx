@@ -6,7 +6,7 @@ import { APPLY_LINK_LABEL, firstUrl, isApplicationLinkField, splitDisplayText } 
 
 function ApplyLink({ href }: { href: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-2">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline min-w-0 font-medium break-all text-primary underline underline-offset-2 [overflow-wrap:anywhere]">
       {APPLY_LINK_LABEL}
     </a>
   );

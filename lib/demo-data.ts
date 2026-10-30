@@ -97,14 +97,41 @@ function applicationRows(now: Date): unknown[][] {
   ];
 }
 
+const DEMO_POSTING_URL =
+  "https://www.ziprecruiter.com/jobs-search?search=Product+Manager&location=Remote+%28USA%29&days=1&lk=exampleToken0123456789";
+
+const DEMO_APPLY_PAGE_URL =
+  "https://jobs.ashbyhq.com/example-co/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/application";
+
+const DEMO_LINK_COLUMN_URL =
+  "https://jobs.ashbyhq.com/example-co/11111111-2222-4333-8444-555555555555/application";
+
 function questionRows(): unknown[][] {
   return [
-    ["Date", "Job/Company", "Question", "Answer", "Status", "Source"],
-    ["", "Willowbrook Health — Clinical Pharmacist", "They offered a panel interview Thursday at 2pm Mountain. The posting is https://example.com/jobs/willowbrook/clinical-pharmacist/panel-interview-cedar-hollow-anticoagulation-cases-residency-project. Should I accept?", "", "Open", ""],
-    ["", "Quietpine Mail Pharmacy — Remote Medication Therapy Pharmacist", "I could not submit this application. Please apply directly: https://example.com/jobs/quietpine/remote-medication-therapy-pharmacist/apply-yourself-on-the-company-site", "", "Open", "LinkedIn"],
-    ["", "Redcedar Ambulatory Clinics — Ambulatory Care Pharmacist", "The form wants a desired salary. Should I enter 158000?", "", "Open", "ZipRecruiter"],
-    ["", "Highdesert Therapy Group — Remote Medication Therapy Pharmacist", "They asked which remote hours you can cover. What should I say?", "", "Open", "LinkedIn"],
-    ["", "Lantern Oncology Partners — Oncology Pharmacist", "The form asks if you hold a board certification. What should I enter?", "", "Open", "LinkedIn"],
+    ["Date", "Job/Company", "Question", "Answer", "Status", "Source", "Link"],
+    [
+      "",
+      "Solstice Informatics Collaborative — Pharmacy Informatics Pharmacist",
+      `I couldn't submit this application. A captcha security check blocked the form. Posting: ${DEMO_POSTING_URL} . Apply page: ${DEMO_APPLY_PAGE_URL} One required question has no saved answer. What should I enter for work authorization?`,
+      "",
+      "Open",
+      "ZipRecruiter",
+      "",
+    ],
+    [
+      "",
+      "Summitridge Clinics — Clinical Pharmacy Specialist",
+      "What should I enter for the work-authorization question?",
+      "",
+      "Open",
+      "LinkedIn",
+      DEMO_LINK_COLUMN_URL,
+    ],
+    ["", "Willowbrook Health — Clinical Pharmacist", "They offered a panel interview Thursday at 2pm Mountain. The posting is https://example.com/jobs/willowbrook/clinical-pharmacist/panel-interview-cedar-hollow-anticoagulation-cases-residency-project. Should I accept?", "", "Open", "", ""],
+    ["", "Quietpine Mail Pharmacy — Remote Medication Therapy Pharmacist", "I could not submit this application. Please apply directly: https://example.com/jobs/quietpine/remote-medication-therapy-pharmacist/apply-yourself-on-the-company-site", "", "Open", "LinkedIn", ""],
+    ["", "Redcedar Ambulatory Clinics — Ambulatory Care Pharmacist", "The form wants a desired salary. Should I enter 158000?", "", "Open", "ZipRecruiter", ""],
+    ["", "Highdesert Therapy Group — Remote Medication Therapy Pharmacist", "They asked which remote hours you can cover. What should I say?", "", "Open", "LinkedIn", ""],
+    ["", "Lantern Oncology Partners — Oncology Pharmacist", "The form asks if you hold a board certification. What should I enter?", "", "Open", "LinkedIn", ""],
   ];
 }
 
@@ -121,7 +148,7 @@ const SCORING_ROWS: unknown[][] = [
 ];
 
 export function demoQuestions(now = new Date()): Question[] {
-  const dates = [0, 1, 2, 4, 6].map((days) => daysAgo(days, now));
+  const dates = [0, 1, 2, 3, 4, 6, 8].map((days) => daysAgo(days, now));
   return parseQuestions(questionRows()).map((question, index) => ({
     ...question,
     date: dates[index] ?? question.date,
