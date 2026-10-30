@@ -149,14 +149,14 @@ export function ApplicationBrowser({
             key={application.row}
             type="button"
             onClick={() => onSelect(application)}
-            className="rounded-2xl bg-card p-4 text-left ring-1 ring-foreground/10"
+            className="min-w-0 overflow-hidden rounded-2xl bg-card p-4 text-left ring-1 ring-foreground/10"
           >
-            <span className="flex items-start justify-between gap-3">
-              <span>
-                <span className="block font-medium">{application.company}</span>
-                <span className="mt-0.5 block text-sm text-muted-foreground">{application.role || "Role not listed"}</span>
+            <span className="flex min-w-0 items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block break-words font-medium [overflow-wrap:anywhere]">{application.company}</span>
+                <span className="mt-0.5 block break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{application.role || "Role not listed"}</span>
               </span>
-              <span className="font-heading text-2xl leading-none tabular-nums">{formatScore(application.score)}</span>
+              <span className="shrink-0 font-heading text-2xl leading-none tabular-nums">{formatScore(application.score)}</span>
             </span>
             <span className="mt-3 flex flex-wrap items-center gap-2">
               <StatusPill status={application.status} />
@@ -168,8 +168,8 @@ export function ApplicationBrowser({
         ))}
       </div>
 
-      <div className="mt-4 hidden overflow-x-auto rounded-2xl bg-card ring-1 ring-foreground/10 md:block">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
+      <div className="mt-4 hidden min-w-0 overflow-hidden rounded-2xl bg-card ring-1 ring-foreground/10 md:block">
+        <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">All job applications</caption>
           <thead>
             <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
@@ -203,8 +203,12 @@ export function ApplicationBrowser({
             {visible.map((application) => (
               <tr key={application.row} className="border-b last:border-0">
                 <td className="px-3 py-3 whitespace-nowrap text-muted-foreground">{formatShortDate(application.dateApplied)}</td>
-                <td className="px-3 py-3 font-medium">{application.company}</td>
-                <td className="px-3 py-3">{application.role || "—"}</td>
+                <td className="overflow-hidden px-3 py-3 font-medium">
+                  <span className="block truncate" title={application.company}>{application.company}</span>
+                </td>
+                <td className="overflow-hidden px-3 py-3">
+                  <span className="block truncate" title={application.role || undefined}>{application.role || "—"}</span>
+                </td>
                 <td className="px-3 py-3">
                   <StatusPill status={application.status} />
                 </td>

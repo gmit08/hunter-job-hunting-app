@@ -18,10 +18,32 @@ import {
 import { postJson, SignInRequired } from "@/components/api-client";
 import { SourcePill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
+import { APPLY_LINK_LABEL, splitDisplayText } from "@/lib/display-text";
 import { THREE_DAY_CHECK_WORKING_TOAST } from "@/lib/three-day-check";
 
-const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
 const THREE_DAY_CHECK_LABEL = "Run 3-day check: drop questions for closed jobs";
+
+function DisplayCopy({ text }: { text: string }) {
+  const display = splitDisplayText(text);
+  return (
+    <>
+      {display.text}
+      {display.applyHref ? (
+        <>
+          {display.text ? " " : null}
+          <a
+            href={display.applyHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            {APPLY_LINK_LABEL}
+          </a>
+        </>
+      ) : null}
+    </>
+  );
+}
 
 function ThreeDayCheckButton({ checking, onCheck }: { checking: boolean; onCheck: () => void }) {
   const locked = useRef(false);
@@ -72,22 +94,6 @@ function RemainingHeader({
       <ThreeDayCheckButton checking={checking} onCheck={onCheck} />
     </div>
   );
-}
-
-function questionParts(text: string): { type: "text" | "link"; value: string }[] {
-  const parts: { type: "text" | "link"; value: string }[] = [];
-  let last = 0;
-  for (const match of text.matchAll(URL_PATTERN)) {
-    const raw = match[0];
-    const index = match.index ?? 0;
-    const value = raw.replace(/[),.;]+$/, "");
-    if (index > last) parts.push({ type: "text", value: text.slice(last, index) });
-    parts.push({ type: "link", value });
-    last = index + raw.length - (raw.length - value.length);
-  }
-  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
-  if (parts.length === 0) parts.push({ type: "text", value: text });
-  return parts;
 }
 
 export function QuestionWizard({
@@ -220,7 +226,7 @@ export function QuestionWizard({
 
   if (!current) {
     return (
-      <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
+      <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-6 lg:pt-8">
         <RemainingHeader count={0} checking={checking} onCheck={onCheck} />
         <p className="mt-2 text-sm text-muted-foreground">The last card is answered.</p>
         <article className="mt-5 rounded-3xl bg-card p-6 ring-1 ring-foreground/10">
@@ -257,30 +263,22 @@ export function QuestionWizard({
   const shown = textFor(current);
 
   return (
-    <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-0 lg:pt-8">
+    <section id="questions" className="scroll-mt-24 px-4 pt-5 lg:px-6 lg:pt-8">
       <RemainingHeader count={openRows.size} large checking={checking} onCheck={onCheck} />
 
       <div className="relative mt-5 pb-6">
         {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
         {order.length > 1 ? <div className="absolute inset-x-2.5 top-2.5 bottom-2 rounded-3xl bg-card ring-1 ring-foreground/10" /> : null}
-        <article key={current.row} className="hunter-card relative rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
+        <article key={current.row} className="hunter-card relative min-w-0 overflow-hidden rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <p className="min-w-0 text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
             <SourcePill source={current.source} />
           </div>
-          <h2 className="mt-2 font-heading text-3xl leading-tight font-medium tracking-tight">
+          <h2 className="mt-2 break-words font-heading text-3xl leading-tight font-medium tracking-tight [overflow-wrap:anywhere]">
             {current.job || "A job"}
           </h2>
-          <p className="mt-4 text-base leading-7">
-            {questionParts(current.question).map((part, index) =>
-              part.type === "link" ? (
-                <a key={index} className="underline underline-offset-2" href={part.value} target="_blank" rel="noopener noreferrer">
-                  {part.value}
-                </a>
-              ) : (
-                <span key={index}>{part.value}</span>
-              ),
-            )}
+          <p className="mt-4 text-base leading-7 break-words [overflow-wrap:anywhere]">
+            <DisplayCopy text={current.question} />
           </p>
           <label className="mt-4 block">
             <span className="sr-only">Answer for {current.job || "this question"}</span>
@@ -372,14 +370,18 @@ export function AnsweredQuestions({ questions }: { questions: Question[] }) {
       {open ? (
         <div className="mt-3 grid gap-3">
           {sent.map((question) => (
-            <article key={question.row} className="rounded-2xl bg-muted/60 px-4 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
+            <article key={question.row} className="min-w-0 overflow-hidden rounded-2xl bg-muted/60 px-4 py-3 text-sm">
+              <div className="flex min-w-0 items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">{formatShortDate(question.date)}</p>
                 <SourcePill source={question.source} />
               </div>
-              <p className="mt-1 font-medium">{question.job || "A job"}</p>
-              <p className="mt-1 text-muted-foreground">{question.question}</p>
-              <p className="mt-2 whitespace-pre-wrap">{question.answer || "No answer text."}</p>
+              <p className="mt-1 break-words font-medium [overflow-wrap:anywhere]">{question.job || "A job"}</p>
+              <p className="mt-1 break-words text-muted-foreground [overflow-wrap:anywhere]">
+                <DisplayCopy text={question.question} />
+              </p>
+              <p className="mt-2 break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
+                <DisplayCopy text={question.answer || "No answer text."} />
+              </p>
             </article>
           ))}
         </div>

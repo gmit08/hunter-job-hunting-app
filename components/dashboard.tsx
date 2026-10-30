@@ -139,8 +139,8 @@ export function Dashboard({
         demo={demo}
       />
 
-      <div className="mx-auto w-full max-w-6xl lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.75fr)] lg:items-start lg:gap-10 lg:px-6">
-        <div className="min-h-dvh lg:min-h-0">
+      <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col">
+        <div className="min-h-dvh min-w-0 lg:min-h-0">
           {data.source === "error" ? (
             <div className="px-4 pt-5 lg:px-0 lg:pt-8">
               <ErrorBanner data={data} onRetry={() => router.refresh()} />
@@ -156,7 +156,7 @@ export function Dashboard({
           )}
         </div>
 
-        <main className="flex flex-col gap-8 px-4 py-8 sm:px-6 lg:px-0 lg:py-8">
+        <main className="flex min-w-0 flex-col gap-8 px-4 py-8 sm:px-6 lg:px-6 lg:pt-2">
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Updated {data.fetchedAt}.</p>
           {data.persona ? <p className="max-w-xl text-sm leading-6">{data.persona}</p> : null}
           {showSetup ? <SetupBanner data={data} passwordProtected={passwordProtected} /> : null}
@@ -170,7 +170,7 @@ export function Dashboard({
             <>
               <section id="overview" className="scroll-mt-24">
               <h2 className="font-heading text-2xl font-medium">Overview</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat label="Applications" value={String(data.summary.total)} detail="In the tracker" />
                 <Stat
                   label="This week"
@@ -193,8 +193,8 @@ export function Dashboard({
                 />
               </div>
 
-              <div className="mt-4 grid gap-3">
-                <article className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <article className="min-w-0 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
                   <h3 className="font-medium">Status</h3>
                   {data.summary.statuses.length === 0 ? (
                     <p className="mt-3 text-sm text-muted-foreground">Statuses will show up once applications are in the sheet.</p>
@@ -224,7 +224,7 @@ export function Dashboard({
                   )}
                 </article>
 
-                <article className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+                <article className="min-w-0 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
                   <h3 className="font-medium">Top scored jobs</h3>
                   {data.summary.top.length === 0 ? (
                     <p className="mt-3 text-sm text-muted-foreground">
@@ -237,13 +237,13 @@ export function Dashboard({
                           <button
                             type="button"
                             onClick={() => setSelected(job)}
-                            className="flex w-full items-start justify-between gap-3 rounded-xl px-1 py-2 text-left hover:bg-muted"
+                            className="flex w-full min-w-0 items-start justify-between gap-3 rounded-xl px-1 py-2 text-left hover:bg-muted"
                           >
-                            <span>
-                              <span className="block font-medium">{job.company}</span>
-                              <span className="block text-sm text-muted-foreground">{job.role}</span>
+                            <span className="min-w-0">
+                              <span className="block break-words font-medium [overflow-wrap:anywhere]">{job.company}</span>
+                              <span className="block break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{job.role}</span>
                             </span>
-                            <span className="font-heading text-2xl leading-none tabular-nums">{formatScore(job.score)}</span>
+                            <span className="shrink-0 font-heading text-2xl leading-none tabular-nums">{formatScore(job.score)}</span>
                           </button>
                         </li>
                       ))}
@@ -253,13 +253,13 @@ export function Dashboard({
               </div>
 
               {data.scoring.length > 0 ? (
-                <details className="mt-4 rounded-2xl bg-card px-4 py-3 ring-1 ring-foreground/10 sm:px-5">
+                <details className="mt-4 min-w-0 rounded-2xl bg-card px-4 py-3 ring-1 ring-foreground/10 sm:px-5">
                   <summary className="cursor-pointer font-medium">How scores are calculated</summary>
                   <dl className="mt-4 grid gap-3">
                     {data.scoring.map((rule) => (
-                      <div key={rule.label}>
-                        <dt className="text-sm font-medium">{rule.label}</dt>
-                        <dd className="text-sm leading-6 text-muted-foreground">{rule.value}</dd>
+                      <div key={rule.label} className="min-w-0">
+                        <dt className="text-sm font-medium break-words [overflow-wrap:anywhere]">{rule.label}</dt>
+                        <dd className="text-sm leading-6 break-words text-muted-foreground [overflow-wrap:anywhere]">{rule.value}</dd>
                       </div>
                     ))}
                   </dl>
@@ -339,10 +339,10 @@ export function Dashboard({
 
 function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <article className="rounded-2xl bg-card px-4 py-4 ring-1 ring-foreground/10">
+    <article className="min-w-0 rounded-2xl bg-card px-4 py-4 ring-1 ring-foreground/10">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 font-heading text-4xl leading-none font-medium tabular-nums">{value}</p>
-      <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
+      <p className="mt-2 text-xs break-words text-muted-foreground [overflow-wrap:anywhere]">{detail}</p>
     </article>
   );
 }
