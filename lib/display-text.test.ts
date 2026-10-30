@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { APPLY_LINK_LABEL, firstUrl, isApplicationLinkField, presentQuestionText, splitDisplayText } from "./display-text";
+import {
+  APPLY_LINK_LABEL,
+  asksForDirectApply,
+  firstUrl,
+  isApplicationLinkField,
+  presentQuestionText,
+  splitDisplayText,
+} from "./display-text";
 
 const LONG_URL =
   "https://example.com/jobs/willowbrook/clinical-pharmacist/panel-interview-cedar-hollow-anticoagulation-cases-residency-project";
@@ -38,23 +45,54 @@ describe("display text", () => {
     assert.equal(isApplicationLinkField("Verification Notes"), false);
   });
 
-  it("strips a posting line and a spaced period, and keeps an apply page only as a labeled link", () => {
+  it("recognizes only the direct-apply phrases", () => {
+    const phrases = [
+      "apply directly",
+      "apply yourself",
+      "manual apply",
+      "couldn't submit",
+      "could not submit",
+      "blocked",
+      "captcha",
+      "security check",
+      "can't get past",
+      "cannot get past",
+      "please submit on the company site",
+    ];
+    for (const phrase of phrases) {
+      assert.equal(asksForDirectApply(`Note: ${phrase}.`), true, phrase);
+    }
+    assert.equal(asksForDirectApply("What should I enter for the work-authorization question?"), false);
+    assert.equal(asksForDirectApply("Please apply on Thursday if you can."), false);
+    assert.equal(asksForDirectApply("The form isn't filled yet."), false);
+  });
+
+  it("strips a posting line and a spaced period, and labels an apply page only for a direct apply", () => {
     const posting =
       "https://www.ziprecruiter.com/jobs-search?search=Product+Manager&location=Remote+%28USA%29&days=1&lk=exampleToken0123456789";
     const apply = "https://jobs.ashbyhq.com/example-co/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/application";
-    const display = splitDisplayText(
-      `Ashby form, no account needed, no save-draft (so the form isn't filled yet). Posting: ${posting} . Apply page: ${apply} One required question has no saved answer. What should I enter?`,
+    const quiet = splitDisplayText(
+      `Ashby form, no account needed. Posting: ${posting} . Apply page: ${apply} One required question has no saved answer. What should I enter?`,
     );
-    assert.equal(display.applyHref, apply);
-    assert.equal(display.text.includes("http"), false);
-    assert.equal(display.text.includes("ziprecruiter"), false);
-    assert.equal(display.text.includes("ashbyhq"), false);
-    assert.equal(display.text.includes("Posting"), false);
-    assert.equal(display.text.includes("Apply page"), false);
-    assert.equal(display.text.includes(posting), false);
+    assert.equal(quiet.applyHref, null);
+    assert.equal(quiet.text.includes("http"), false);
+    assert.equal(quiet.text.includes("Posting"), false);
+    assert.equal(quiet.text.includes("Apply page"), false);
     assert.equal(
-      display.text,
-      "Ashby form, no account needed, no save-draft (so the form isn't filled yet). One required question has no saved answer. What should I enter?",
+      quiet.text,
+      "Ashby form, no account needed. One required question has no saved answer. What should I enter?",
+    );
+
+    const blocked = splitDisplayText(
+      `I couldn't submit this application. A captcha security check blocked the form. Posting: ${posting} . Apply page: ${apply} One required question has no saved answer.`,
+    );
+    assert.equal(blocked.applyHref, apply);
+    assert.equal(blocked.text.includes("http"), false);
+    assert.equal(blocked.text.includes("ziprecruiter"), false);
+    assert.equal(blocked.text.includes("ashbyhq"), false);
+    assert.equal(
+      blocked.text,
+      "I couldn't submit this application. A captcha security check blocked the form. One required question has no saved answer.",
     );
     assert.equal(APPLY_LINK_LABEL, "Apply on company site");
   });
@@ -81,24 +119,31 @@ describe("display text", () => {
     assert.equal(display.text, "The screener sent a note. They asked about weekends.");
   });
 
-  it("uses the Link column when it has a URL and falls back to the question text when it does not", () => {
+  it("uses Link only when the question asks for a direct apply", () => {
     const column = "https://jobs.lever.co/example-co/11111111-2222-4333-8444-555555555555";
+    const apply = "https://jobs.ashbyhq.com/example-co/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/application";
     const posting =
       "https://www.ziprecruiter.com/jobs-search?search=Product+Manager&location=Remote+%28USA%29&days=1&lk=exampleToken0123456789";
-    const fromColumn = presentQuestionText("What should I enter for work authorization?", column);
-    assert.equal(fromColumn.applyHref, column);
-    assert.equal(fromColumn.text, "What should I enter for work authorization?");
 
-    const blank = presentQuestionText(
-      `Posting: ${posting} . Should I accept the Thursday panel?`,
-      "  ",
+    const ordinary = presentQuestionText("What should I enter for the work-authorization question?", column);
+    assert.equal(ordinary.applyHref, null);
+    assert.equal(ordinary.text, "What should I enter for the work-authorization question?");
+
+    const fromColumn = presentQuestionText(
+      "I can't get past the login wall. Please apply directly.",
+      column,
     );
-    assert.equal(blank.applyHref, null);
-    assert.equal(blank.text.includes("http"), false);
-    assert.equal(blank.text.includes("Posting"), false);
-    assert.equal(blank.text, "Should I accept the Thursday panel?");
+    assert.equal(fromColumn.applyHref, column);
+    assert.equal(fromColumn.text.includes("http"), false);
 
-    const missing = presentQuestionText("Should I enter 158000?", undefined);
-    assert.deepEqual(missing, { text: "Should I enter 158000?", applyHref: null });
+    const fromText = presentQuestionText(
+      `Manual apply. Posting: ${posting} . Apply page: ${apply}`,
+      "",
+    );
+    assert.equal(fromText.applyHref, apply);
+    assert.equal(fromText.text.includes("http"), false);
+    assert.equal(fromText.text.includes("Posting"), false);
+    assert.equal(fromText.text.includes("Apply page"), false);
+    assert.equal(fromText.text, "Manual apply.");
   });
 });

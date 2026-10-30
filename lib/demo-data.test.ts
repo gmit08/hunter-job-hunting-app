@@ -52,20 +52,21 @@ describe("demo fixture", () => {
     assert.equal(questions.some((question) => question.source === "ZipRecruiter"), true);
     assert.equal(questions.some((question) => question.source === "LinkedIn"), true);
 
-    const patterned = questions.find((question) => question.question.includes("no save-draft"));
-    assert.ok(patterned);
-    assert.equal(patterned.link, "");
-    const hidden = presentQuestionText(patterned.question, patterned.link);
-    assert.equal(hidden.text.includes("http"), false);
-    assert.equal(hidden.text.includes("ziprecruiter"), false);
-    assert.equal(hidden.applyHref?.includes("jobs.ashbyhq.com"), true);
+    const blocked = questions.find((question) => question.question.includes("captcha"));
+    assert.ok(blocked);
+    assert.equal(blocked.link, "");
+    const labeled = presentQuestionText(blocked.question, blocked.link);
+    assert.equal(labeled.text.includes("http"), false);
+    assert.equal(labeled.text.includes("ziprecruiter"), false);
+    assert.equal(labeled.applyHref?.includes("/application"), true);
 
     const linked = questions.find((question) => question.link.startsWith("https://"));
     assert.ok(linked);
+    assert.equal(linked.question.includes("captcha"), false);
     assert.equal(linked.question.includes("http"), false);
-    const fromColumn = presentQuestionText(linked.question, linked.link);
-    assert.equal(fromColumn.applyHref, linked.link);
-    assert.equal(fromColumn.text.includes("http"), false);
+    const plain = presentQuestionText(linked.question, linked.link);
+    assert.equal(plain.applyHref, null);
+    assert.equal(plain.text.includes("http"), false);
   });
 
   it("does not contain real employers, addresses, or secrets", () => {

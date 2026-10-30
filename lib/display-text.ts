@@ -1,7 +1,18 @@
 const URL_SOURCE = "https?:\\/\\/[^\\s<>\"']+";
 
-const DIRECT_APPLY =
-  /\b(apply directly|apply yourself|apply on (their|the|company) site|manual apply|please apply|apply here|could not submit|couldn'?t submit|would not submit|won'?t submit|submit (it |this )?yourself|no save-?draft|isn'?t filled|is not filled|not filled yet|could not fill|couldn'?t fill)\b/i;
+const DIRECT_APPLY_PHRASES = [
+  "apply directly",
+  "apply yourself",
+  "manual apply",
+  "couldn't submit",
+  "could not submit",
+  "blocked",
+  "captcha",
+  "security check",
+  "can't get past",
+  "cannot get past",
+  "please submit on the company site",
+];
 
 const POSTING_LABEL_AT_END =
   /\b(?:(?:the|a)\s+)?(?:job\s+)?posting(?:\s+is)?\s*:?\s*$|\b(?:the\s+)?(?:link|url)\s+is\s*$/i;
@@ -76,8 +87,12 @@ function urlHits(text: string): UrlHit[] {
   return hits;
 }
 
-function promptsDirectApply(text: string): boolean {
-  return DIRECT_APPLY.test(text);
+export function asksForDirectApply(text: string): boolean {
+  const normalized = normalizeCopy(text);
+  return DIRECT_APPLY_PHRASES.some((phrase) => {
+    const pattern = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${pattern}\\b`, "i").test(normalized);
+  });
 }
 
 function tidyStrippedText(text: string): string {
@@ -107,7 +122,7 @@ export function splitDisplayText(text: string): { text: string; applyHref: strin
   if (hits.length === 0) return { text: normalized.trim(), applyHref: null };
   const applyHit = hits.find((hit) => hit.kind === "apply");
   const plainHit = hits.find((hit) => hit.kind === "plain");
-  const applyHref = promptsDirectApply(normalized) ? (applyHit?.url ?? plainHit?.url ?? null) : null;
+  const applyHref = asksForDirectApply(normalized) ? (applyHit?.url ?? plainHit?.url ?? null) : null;
   return { text: textWithoutUrls(normalized, hits), applyHref };
 }
 
@@ -116,7 +131,8 @@ export function presentQuestionText(
   link?: string | null,
 ): { text: string; applyHref: string | null } {
   const display = splitDisplayText(text);
+  if (!asksForDirectApply(text)) return { text: display.text, applyHref: null };
   const columnHref = firstUrl(link ?? "");
-  if (!columnHref) return display;
-  return { text: display.text, applyHref: columnHref };
+  if (columnHref) return { text: display.text, applyHref: columnHref };
+  return display;
 }

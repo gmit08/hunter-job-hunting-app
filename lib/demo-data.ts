@@ -112,7 +112,7 @@ function questionRows(): unknown[][] {
     [
       "",
       "Solstice Informatics Collaborative — Pharmacy Informatics Pharmacist",
-      `Ashby form, no account needed, no save-draft (so the form isn't filled yet). Posting: ${DEMO_POSTING_URL} . Apply page: ${DEMO_APPLY_PAGE_URL} One required question has no saved answer. What should I enter for work authorization?`,
+      `I couldn't submit this application. A captcha security check blocked the form. Posting: ${DEMO_POSTING_URL} . Apply page: ${DEMO_APPLY_PAGE_URL} One required question has no saved answer. What should I enter for work authorization?`,
       "",
       "Open",
       "ZipRecruiter",
