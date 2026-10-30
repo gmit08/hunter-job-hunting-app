@@ -29,11 +29,11 @@ export function buildWizardOrder(input: {
   return [...priorAnswered, ...sessionSaved, ...openSheet, ...skipped];
 }
 
-export function initialCursor(order: number[], openRows: ReadonlySet<number>): number | null {
+export function initialCursor<T>(order: T[], openRows: ReadonlySet<T>): T | null {
   return order.find((row) => openRows.has(row)) ?? null;
 }
 
-export function previousIndex(order: number[], cursor: number | "complete"): number | null {
+export function previousIndex<T>(order: T[], cursor: T | "complete"): number | null {
   if (order.length === 0) return null;
   if (cursor === "complete") return order.length - 1;
   const index = order.indexOf(cursor);
@@ -41,11 +41,11 @@ export function previousIndex(order: number[], cursor: number | "complete"): num
   return index - 1;
 }
 
-export function cursorAfterSave(
-  order: number[],
-  savedRow: number,
-  openRows: ReadonlySet<number>,
-): number | "complete" {
+export function cursorAfterSave<T>(
+  order: T[],
+  savedRow: T,
+  openRows: ReadonlySet<T>,
+): T | "complete" {
   const index = order.indexOf(savedRow);
   const after = index >= 0 ? order.slice(index + 1) : order;
   const next = after.find((row) => openRows.has(row));
@@ -55,12 +55,12 @@ export function cursorAfterSave(
   return "complete";
 }
 
-export function cursorAfterSkip(
-  oldOrder: number[],
-  newOrder: number[],
-  skippedRow: number,
-  openRows: ReadonlySet<number>,
-): number {
+export function cursorAfterSkip<T>(
+  oldOrder: T[],
+  newOrder: T[],
+  skippedRow: T,
+  openRows: ReadonlySet<T>,
+): T {
   const index = oldOrder.indexOf(skippedRow);
   const after = index >= 0 ? oldOrder.slice(index + 1) : [];
   const next = after.find((row) => openRows.has(row) && row !== skippedRow && newOrder.includes(row));

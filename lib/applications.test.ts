@@ -11,8 +11,11 @@ import {
   parseApplications,
   parsePaused,
   parseQuestions,
+  formatShortDate,
   parseSheetDate,
+  parseSheetMoment,
   parseScoring,
+  storedSheetDate,
   startOfWeekISO,
   summarize,
 } from "./applications";
@@ -26,6 +29,42 @@ describe("sheet dates and pause values", () => {
     assert.equal(parseSheetDate("2026-10-16"), "2026-10-16");
     assert.equal(parseSheetDate("10/5/2026"), "2026-10-05");
     assert.equal(parseSheetDate("NA"), null);
+  });
+
+  it("reads an Eastern clock time and a Sheets date-time serial", () => {
+    const timed = parseSheetMoment("2026-10-30 3:22 PM ET");
+    assert.ok(timed);
+    assert.equal(timed.hasTime, true);
+    assert.equal(timed.day, "2026-10-30");
+    assert.equal(formatShortDate(storedSheetDate("2026-10-30 3:22 PM ET")), "Oct 30, 3:22 PM");
+
+    const dateOnly = parseSheetMoment("2026-10-27");
+    assert.ok(dateOnly);
+    assert.equal(dateOnly.hasTime, false);
+    assert.equal(dateOnly.day, "2026-10-27");
+    assert.equal(dateOnly.ms < timed.ms, true);
+    assert.equal(formatShortDate("2026-10-27"), "Oct 27");
+
+    const serial = 46296 + 12 / 24;
+    const fromSerial = parseSheetMoment(serial);
+    assert.equal(fromSerial?.hasTime, true);
+    assert.equal(fromSerial?.ms, Math.round((serial - 25569) * 86400 * 1000));
+    assert.equal(parseSheetDate(46296), "2026-10-01");
+
+    const now = new Date("2026-10-30T16:00:00-04:00");
+    const applications = parseApplications([
+      ["Date Applied", "Company", "Job Title", "Status"],
+      ["2026-10-30 3:22 PM ET", "Acme", "Pharmacist", "Applied"],
+      [serial, "Older", "Pharmacist", "Applied"],
+      ["2026-10-27", "Midweek", "Pharmacist", "Applied"],
+    ]);
+    const summary = summarize(applications, now);
+    assert.equal(summary.weekStart, "2026-10-26");
+    assert.equal(summary.thisWeek, 2);
+    assert.equal(summary.today, "2026-10-30");
+    assert.equal(formatShortDate(applications[0]?.dateApplied ?? null), "Oct 30, 3:22 PM");
+    assert.equal(applications[0]?.dateApplied != null && applications[2]?.dateApplied != null, true);
+    assert.equal((applications[0]?.dateApplied ?? "") > (applications[2]?.dateApplied ?? ""), true);
   });
 
   it("treats only truthy pause values as paused", () => {

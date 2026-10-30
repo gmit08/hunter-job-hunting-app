@@ -11,7 +11,7 @@ import { ApplicationDetail } from "@/components/application-detail";
 import { postJson, SignInRequired } from "@/components/api-client";
 import { formatScore, statusColor, StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
-import { isOpenStatus } from "@/lib/applications";
+import { openJobCount } from "@/lib/question-sort";
 import {
   QUESTIONS_UPDATED_TOAST,
   THREE_DAY_CHECK_ERROR_TOAST,
@@ -66,7 +66,7 @@ export function Dashboard({
   }, []);
   const highest = data.summary.top[0];
   const showSetup = data.source !== "demo" && (data.source !== "sheet" || !passwordProtected || !data.webhookReady);
-  const openCount = data.questions.filter((question) => isOpenStatus(question.status)).length;
+  const openCount = openJobCount(data.questions);
 
   function showToast(next: Toast, persist = false) {
     setToast(next);

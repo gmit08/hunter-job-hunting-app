@@ -120,6 +120,15 @@ function questionRows(): unknown[][] {
     ],
     [
       "",
+      "Solstice Informatics Collaborative - Pharmacy Informatics Pharmacist (Match 87, Remote, Mountain time)",
+      "A follow-up form asks which clinic systems you have used. What should I list?",
+      "",
+      "Open",
+      "ZipRecruiter",
+      "",
+    ],
+    [
+      "",
       "Summitridge Clinics — Clinical Pharmacy Specialist",
       "What should I enter for the work-authorization question?",
       "",
@@ -148,10 +157,10 @@ const SCORING_ROWS: unknown[][] = [
 ];
 
 export function demoQuestions(now = new Date()): Question[] {
-  const dates = [0, 1, 2, 3, 4, 6, 8].map((days) => daysAgo(days, now));
+  const dates = [0, 0, 1, 2, 3, 4, 6, 8].map((days) => daysAgo(days, now));
   return parseQuestions(questionRows()).map((question, index) => ({
     ...question,
-    date: dates[index] ?? question.date,
+    date: index === 1 ? `${dates[1]} 3:22 PM ET` : (dates[index] ?? question.date),
   }));
 }
 

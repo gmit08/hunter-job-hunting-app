@@ -47,8 +47,8 @@ describe("demo fixture", () => {
   it("mixes ZipRecruiter and LinkedIn on open questions, including a link column", () => {
     const questions = demoQuestions(now);
     const open = questions.filter((question) => isOpenStatus(question.status));
-    assert.equal(questions.length, 7);
-    assert.equal(open.length, 7);
+    assert.equal(questions.length, 8);
+    assert.equal(open.length, 8);
     assert.equal(questions.some((question) => question.source === "ZipRecruiter"), true);
     assert.equal(questions.some((question) => question.source === "LinkedIn"), true);
 

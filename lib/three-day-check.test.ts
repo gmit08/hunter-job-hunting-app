@@ -36,6 +36,7 @@ describe("3-day check completion cell", () => {
     assert.equal(parseCompletionTimestamp("2026-10-28T02:19:00Z"), Date.parse("2026-10-28T02:19:00Z"));
     assert.equal(parseCompletionTimestamp(25569), Date.parse("1970-01-01T00:00:00.000Z"));
     assert.equal(parseCompletionTimestamp(25569.5), Date.parse("1970-01-01T12:00:00.000Z"));
+    assert.equal(parseCompletionTimestamp("2026-10-28 2:19 AM ET"), Date.parse("2026-10-28T06:19:00.000Z"));
   });
 
   it("rejects pause values, date-only text, and blank cells", () => {
