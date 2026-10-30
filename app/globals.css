@@ -159,9 +159,13 @@
 }
 
 @media (pointer: coarse) {
+  .wizard-next {
+    flex: 1 1 auto;
+  }
+
   .wizard-touch-actions {
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     align-items: center;
     min-width: 0;
   }
