@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { formatShortDate, isDoneStatus, isOpenStatus, type Question } from "@/lib/applications";
+import { formatShortDate, isDoneStatus, isOpenStatus, type Application, type Question } from "@/lib/applications";
 import {
-  buildWizardOrder,
   cursorAfterSave,
   cursorAfterSkip,
   enterInsertsNewline,
@@ -15,6 +14,15 @@ import {
   previousIndex,
   usesCoarsePointer,
 } from "@/lib/question-stack";
+import {
+  QUESTION_SORTS,
+  orderQuestionRows,
+  readSessionQuestionSort,
+  scoresForJob,
+  writeSessionQuestionSort,
+  type QuestionSort,
+  type RankedQuestion,
+} from "@/lib/question-sort";
 import { postJson, SignInRequired } from "@/components/api-client";
 import { SourcePill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
@@ -67,40 +75,111 @@ function ThreeDayCheckButton({ checking, onCheck }: { checking: boolean; onCheck
   );
 }
 
+function QuestionSortMenu({ sort, onChange }: { sort: QuestionSort; onChange: (sort: QuestionSort) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const current = QUESTION_SORTS.find((item) => item.id === sort) ?? QUESTION_SORTS[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node) || rootRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative ml-auto min-w-0">
+      <button
+        type="button"
+        className="flex h-9 max-w-full min-w-0 items-center gap-1 rounded-full bg-card px-3 text-left text-sm ring-1 ring-foreground/10"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Sort questions, ${current.label}`}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="truncate">{current.label}</span>
+        <span aria-hidden="true">▾</span>
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          aria-label="Sort questions"
+          className="absolute right-0 z-30 mt-1 w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-2xl bg-card p-1 text-sm shadow-lg ring-1 ring-foreground/10"
+        >
+          {QUESTION_SORTS.map((item) => (
+            <li key={item.id} role="option" aria-selected={item.id === sort}>
+              <button
+                type="button"
+                className={`block w-full rounded-xl px-3 py-2 text-left ${item.id === sort ? "bg-muted font-medium" : "hover:bg-muted"}`}
+                onClick={() => {
+                  onChange(item.id);
+                  setOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function RemainingHeader({
   count,
   large,
   checking,
   onCheck,
+  sort,
+  onSort,
 }: {
   count: number;
   large?: boolean;
   checking: boolean;
   onCheck: () => void;
+  sort: QuestionSort;
+  onSort: (sort: QuestionSort) => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 items-center gap-1">
-      <p
-        className={`min-w-0 font-heading leading-none font-medium tracking-tight ${
-          large ? "text-4xl lg:text-5xl" : "text-4xl"
-        }`}
-      >
-        {count}{" "}
-        <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
-      </p>
-      <ThreeDayCheckButton checking={checking} onCheck={onCheck} />
+    <div className="relative z-20 flex w-full min-w-0 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-center gap-1">
+        <p
+          className={`min-w-0 font-heading leading-none font-medium tracking-tight ${
+            large ? "text-4xl lg:text-5xl" : "text-4xl"
+          }`}
+        >
+          {count}{" "}
+          <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
+        </p>
+        <ThreeDayCheckButton checking={checking} onCheck={onCheck} />
+      </div>
+      <QuestionSortMenu sort={sort} onChange={onSort} />
     </div>
   );
 }
 
 export function QuestionWizard({
   questions,
+  applications,
   sending,
   onSend,
   checking,
   onCheck,
 }: {
   questions: Question[];
+  applications: Application[];
   sending: boolean;
   onSend: () => void;
   checking: boolean;
@@ -115,6 +194,7 @@ export function QuestionWizard({
   const [cursorOverride, setCursorOverride] = useState<number | "complete" | null>(null);
   const [savingRow, setSavingRow] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [sort, setSort] = useState<QuestionSort>("newest");
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const previousFocus = useRef<number | null>(null);
 
@@ -129,16 +209,43 @@ export function QuestionWizard({
     return question.answer;
   }
 
-  const sheetRows = questions.map((question) => {
-    const status = statusOf(question);
-    return {
-      row: question.row,
-      editable: !isDoneStatus(status),
-      open: isOpenStatus(status),
-    };
-  });
-  const openRows = new Set(sheetRows.filter((row) => row.open).map((row) => row.row));
-  const order = buildWizardOrder({ sheetRows, sessionSaved, skipped });
+  useEffect(() => {
+    setSort(readSessionQuestionSort());
+  }, []);
+
+  function rankedQuestions(closedRow?: number): RankedQuestion[] {
+    return questions.map((question) => {
+      const status = closedRow === question.row ? "Answered" : statusOf(question);
+      const scores = scoresForJob(question.job, applications);
+      return {
+        row: question.row,
+        date: question.date,
+        score: scores.score,
+        matchScore: scores.matchScore,
+        editable: !isDoneStatus(status),
+        open: isOpenStatus(status),
+      };
+    });
+  }
+
+  function orderedRows(nextSession: number[], nextSkipped: number[], closedRow?: number): number[] {
+    return orderQuestionRows({
+      questions: rankedQuestions(closedRow),
+      sort,
+      sessionSaved: nextSession,
+      skipped: nextSkipped,
+    });
+  }
+
+  function chooseSort(next: QuestionSort) {
+    setSort(next);
+    writeSessionQuestionSort(next);
+    setCursorOverride(null);
+  }
+
+  const ranked = rankedQuestions();
+  const openRows = new Set(ranked.filter((row) => row.open).map((row) => row.row));
+  const order = orderedRows(sessionSaved, skipped);
   let cursor = cursorOverride;
   if (typeof cursor === "number" && !order.includes(cursor)) cursor = null;
   if (cursor == null) cursor = initialCursor(order, openRows) ?? "complete";
@@ -175,14 +282,7 @@ export function QuestionWizard({
       });
       const nextSession = noteSaved(sessionSaved, question.row);
       const nextSkipped = skipped.filter((row) => row !== question.row);
-      const nextSheet = sheetRows.map((row) =>
-        row.row === question.row ? { ...row, open: false, editable: true } : row,
-      );
-      const nextOrder = buildWizardOrder({
-        sheetRows: nextSheet,
-        sessionSaved: nextSession,
-        skipped: nextSkipped,
-      });
+      const nextOrder = orderedRows(nextSession, nextSkipped, question.row);
       const nextOpen = new Set([...openRows].filter((row) => row !== question.row));
       setDrafts((existing) => {
         const next = { ...existing };
@@ -210,7 +310,7 @@ export function QuestionWizard({
     if (savingRow !== null || !isOpenStatus(statusOf(question))) return;
     setError("");
     const nextSkipped = noteSkipped(skipped, question.row);
-    const nextOrder = buildWizardOrder({ sheetRows, sessionSaved, skipped: nextSkipped });
+    const nextOrder = orderedRows(sessionSaved, nextSkipped);
     setSkipped(nextSkipped);
     setCursorOverride(cursorAfterSkip(order, nextOrder, question.row, openRows));
   }
@@ -224,7 +324,7 @@ export function QuestionWizard({
   if (!current) {
     return (
       <section id="questions" className="scroll-mt-24 min-w-0 max-w-full overflow-x-hidden px-4 pt-5 lg:px-6 lg:pt-8">
-        <RemainingHeader count={0} checking={checking} onCheck={onCheck} />
+        <RemainingHeader count={0} checking={checking} onCheck={onCheck} sort={sort} onSort={chooseSort} />
         <p className="mt-2 text-sm text-muted-foreground">The last card is answered.</p>
         <article className="mt-5 rounded-3xl bg-card p-6 ring-1 ring-foreground/10">
           <div className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
@@ -261,7 +361,7 @@ export function QuestionWizard({
 
   return (
     <section id="questions" className="scroll-mt-24 min-w-0 max-w-full overflow-x-hidden px-4 pt-5 lg:px-6 lg:pt-8">
-      <RemainingHeader count={openRows.size} large checking={checking} onCheck={onCheck} />
+      <RemainingHeader count={openRows.size} large checking={checking} onCheck={onCheck} sort={sort} onSort={chooseSort} />
 
       <div className="relative mt-5 min-w-0 max-w-full pb-6">
         {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}

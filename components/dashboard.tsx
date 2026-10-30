@@ -148,6 +148,7 @@ export function Dashboard({
           ) : (
             <QuestionWizard
               questions={data.questions}
+              applications={data.applications}
               sending={sending}
               onSend={sendAnswers}
               checking={checking}
