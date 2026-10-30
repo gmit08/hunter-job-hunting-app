@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatShortDate, type Application } from "@/lib/applications";
+import { formatShortDate, parseSheetMoment, type Application } from "@/lib/applications";
 import { formatScore, StatusPill } from "@/components/status-pill";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ const COLUMNS: { key: SortKey; label: string; className?: string }[] = [
 function sortValue(application: Application, key: SortKey): string | number | null {
   switch (key) {
     case "date":
-      return application.dateApplied;
+      return parseSheetMoment(application.dateApplied ?? "")?.ms ?? null;
     case "company":
       return application.company.toLowerCase();
     case "role":

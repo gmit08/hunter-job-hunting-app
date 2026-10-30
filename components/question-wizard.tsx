@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { formatShortDate, isDoneStatus, isOpenStatus, type Question } from "@/lib/applications";
+import { formatShortDate, isDoneStatus, isOpenStatus, type Application, type Question } from "@/lib/applications";
 import {
-  buildWizardOrder,
   cursorAfterSave,
   cursorAfterSkip,
   enterInsertsNewline,
@@ -15,6 +14,18 @@ import {
   previousIndex,
   usesCoarsePointer,
 } from "@/lib/question-stack";
+import {
+  QUESTION_SORTS,
+  buildJobCards,
+  jobDisplayTitle,
+  jobGroupKey,
+  orderJobCards,
+  readSessionQuestionSort,
+  scoresForJob,
+  writeSessionQuestionSort,
+  type QuestionSort,
+  type RankedQuestion,
+} from "@/lib/question-sort";
 import { postJson, SignInRequired } from "@/components/api-client";
 import { SourcePill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
@@ -67,40 +78,111 @@ function ThreeDayCheckButton({ checking, onCheck }: { checking: boolean; onCheck
   );
 }
 
+function QuestionSortMenu({ sort, onChange }: { sort: QuestionSort; onChange: (sort: QuestionSort) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const current = QUESTION_SORTS.find((item) => item.id === sort) ?? QUESTION_SORTS[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node) || rootRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative ml-auto min-w-0">
+      <button
+        type="button"
+        className="flex h-9 max-w-full min-w-0 items-center gap-1 rounded-full bg-card px-3 text-left text-sm ring-1 ring-foreground/10"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Sort questions, ${current.label}`}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="truncate">{current.label}</span>
+        <span aria-hidden="true">▾</span>
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          aria-label="Sort questions"
+          className="absolute right-0 z-30 mt-1 w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-2xl bg-card p-1 text-sm shadow-lg ring-1 ring-foreground/10"
+        >
+          {QUESTION_SORTS.map((item) => (
+            <li key={item.id} role="option" aria-selected={item.id === sort}>
+              <button
+                type="button"
+                className={`block w-full rounded-xl px-3 py-2 text-left ${item.id === sort ? "bg-muted font-medium" : "hover:bg-muted"}`}
+                onClick={() => {
+                  onChange(item.id);
+                  setOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function RemainingHeader({
   count,
   large,
   checking,
   onCheck,
+  sort,
+  onSort,
 }: {
   count: number;
   large?: boolean;
   checking: boolean;
   onCheck: () => void;
+  sort: QuestionSort;
+  onSort: (sort: QuestionSort) => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 items-center gap-1">
-      <p
-        className={`min-w-0 font-heading leading-none font-medium tracking-tight ${
-          large ? "text-4xl lg:text-5xl" : "text-4xl"
-        }`}
-      >
-        {count}{" "}
-        <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
-      </p>
-      <ThreeDayCheckButton checking={checking} onCheck={onCheck} />
+    <div className="relative z-20 flex w-full min-w-0 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-center gap-1">
+        <p
+          className={`min-w-0 font-heading leading-none font-medium tracking-tight ${
+            large ? "text-4xl lg:text-5xl" : "text-4xl"
+          }`}
+        >
+          {count}{" "}
+          <span className="font-sans text-xl font-medium text-muted-foreground">remaining</span>
+        </p>
+        <ThreeDayCheckButton checking={checking} onCheck={onCheck} />
+      </div>
+      <QuestionSortMenu sort={sort} onChange={onSort} />
     </div>
   );
 }
 
 export function QuestionWizard({
   questions,
+  applications,
   sending,
   onSend,
   checking,
   onCheck,
 }: {
   questions: Question[];
+  applications: Application[];
   sending: boolean;
   onSend: () => void;
   checking: boolean;
@@ -112,11 +194,12 @@ export function QuestionWizard({
   const [localStatus, setLocalStatus] = useState<Record<number, string>>({});
   const [sessionSaved, setSessionSaved] = useState<number[]>([]);
   const [skipped, setSkipped] = useState<number[]>([]);
-  const [cursorOverride, setCursorOverride] = useState<number | "complete" | null>(null);
-  const [savingRow, setSavingRow] = useState<number | null>(null);
+  const [cursorOverride, setCursorOverride] = useState<string | "complete" | null>(null);
+  const [savingCard, setSavingCard] = useState(false);
   const [error, setError] = useState("");
+  const [sort, setSort] = useState<QuestionSort>("newest");
   const areaRef = useRef<HTMLTextAreaElement>(null);
-  const previousFocus = useRef<number | null>(null);
+  const previousFocus = useRef<string | null>(null);
 
   function statusOf(question: Question): string {
     if (isDoneStatus(question.status)) return question.status;
@@ -129,28 +212,64 @@ export function QuestionWizard({
     return question.answer;
   }
 
-  const sheetRows = questions.map((question) => {
-    const status = statusOf(question);
-    return {
-      row: question.row,
-      editable: !isDoneStatus(status),
-      open: isOpenStatus(status),
-    };
-  });
-  const openRows = new Set(sheetRows.filter((row) => row.open).map((row) => row.row));
-  const order = buildWizardOrder({ sheetRows, sessionSaved, skipped });
+  useEffect(() => {
+    setSort(readSessionQuestionSort());
+  }, []);
+
+  function rankedQuestions(closedRows?: ReadonlySet<number>): RankedQuestion[] {
+    return questions.flatMap((question) => {
+      const status = closedRows?.has(question.row) ? "Answered" : statusOf(question);
+      if (isDoneStatus(status)) return [];
+      const scores = scoresForJob(question.job, applications);
+      return [{
+        row: question.row,
+        date: question.date,
+        job: question.job,
+        score: scores.score,
+        matchScore: scores.matchScore,
+        editable: true,
+        open: isOpenStatus(status),
+      }];
+    });
+  }
+
+  function orderedCards(nextSession: number[], nextSkipped: number[], closedRows?: ReadonlySet<number>): string[] {
+    return orderJobCards({
+      questions: rankedQuestions(closedRows),
+      sort,
+      sessionSaved: nextSession,
+      skipped: nextSkipped,
+    });
+  }
+
+  function chooseSort(next: QuestionSort) {
+    setSort(next);
+    writeSessionQuestionSort(next);
+    setCursorOverride(null);
+  }
+
+  const ranked = rankedQuestions();
+  const cards = buildJobCards(ranked);
+  const cardsByKey = new Map(cards.map((card) => [card.key, card]));
+  const openJobKeys = new Set(
+    ranked.filter((question) => question.open).map((question) => jobGroupKey(question.job) || `row:${question.row}`),
+  );
+  const openCardKeys = new Set(
+    cards.filter((card) => card.questions.some((question) => question.open && !skipped.includes(question.row))).map((card) => card.key),
+  );
+  const order = orderedCards(sessionSaved, skipped);
   let cursor = cursorOverride;
-  if (typeof cursor === "number" && !order.includes(cursor)) cursor = null;
-  if (cursor == null) cursor = initialCursor(order, openRows) ?? "complete";
-  const current = typeof cursor === "number" ? questions.find((question) => question.row === cursor) : undefined;
-  const backIndex = previousIndex(order, current ? current.row : "complete");
+  if (typeof cursor === "string" && !order.includes(cursor)) cursor = null;
+  if (cursor == null) cursor = initialCursor(order, openCardKeys) ?? "complete";
+  const current = typeof cursor === "string" ? cardsByKey.get(cursor) : undefined;
+  const backIndex = previousIndex(order, current ? current.key : "complete");
 
   useEffect(() => {
     if (!current) return;
-    if (previousFocus.current !== null && previousFocus.current !== current.row) {
+    if (previousFocus.current !== null && previousFocus.current !== current.key) {
       areaRef.current?.focus();
     }
-    previousFocus.current = current.row;
+    previousFocus.current = current.key;
   }, [current]);
 
   function textFor(question: Question): string {
@@ -158,43 +277,25 @@ export function QuestionWizard({
     return answerOf(question);
   }
 
-  async function submit(question: Question) {
-    if (savingRow !== null) return;
-    const answer = textFor(question).trim();
+  async function submitCard(cardQuestions: Question[], cardKey: string) {
+    if (savingCard) return;
+    const answers = cardQuestions.map((question) => ({ question, answer: textFor(question).trim() }));
     setError("");
-    if (!answer) {
+    if (answers.some((item) => !item.answer)) {
       setError("Type an answer first.");
       return;
     }
-    setSavingRow(question.row);
+    setSavingCard(true);
+    const saved: { question: Question; answer: string }[] = [];
     try {
-      await postJson<{ message: string }>("/api/questions", {
-        row: question.row,
-        question: question.question,
-        answer,
-      });
-      const nextSession = noteSaved(sessionSaved, question.row);
-      const nextSkipped = skipped.filter((row) => row !== question.row);
-      const nextSheet = sheetRows.map((row) =>
-        row.row === question.row ? { ...row, open: false, editable: true } : row,
-      );
-      const nextOrder = buildWizardOrder({
-        sheetRows: nextSheet,
-        sessionSaved: nextSession,
-        skipped: nextSkipped,
-      });
-      const nextOpen = new Set([...openRows].filter((row) => row !== question.row));
-      setDrafts((existing) => {
-        const next = { ...existing };
-        delete next[question.row];
-        return next;
-      });
-      setLocalAnswers((existing) => ({ ...existing, [question.row]: answer }));
-      setLocalStatus((existing) => ({ ...existing, [question.row]: "Answered" }));
-      setSessionSaved(nextSession);
-      setSkipped(nextSkipped);
-      setCursorOverride(cursorAfterSave(nextOrder, question.row, nextOpen));
-      router.refresh();
+      for (const item of answers) {
+        await postJson<{ message: string }>("/api/questions", {
+          row: item.question.row,
+          question: item.question.question,
+          answer: item.answer,
+        });
+        saved.push(item);
+      }
     } catch (caught) {
       if (caught instanceof SignInRequired) {
         router.push("/login");
@@ -202,21 +303,56 @@ export function QuestionWizard({
       }
       setError(caught instanceof Error ? caught.message : "The answer did not save.");
     } finally {
-      setSavingRow(null);
+      if (saved.length > 0) {
+        const closed = new Set(saved.map((item) => item.question.row));
+        let nextSession = sessionSaved;
+        for (const item of saved) nextSession = noteSaved(nextSession, item.question.row);
+        const nextSkipped = skipped.filter((row) => !closed.has(row));
+        const nextOrder = orderedCards(nextSession, nextSkipped, closed);
+        const nextOpen = new Set(
+          [...openCardKeys].filter((key) => {
+            const card = cardsByKey.get(key);
+            return card?.questions.some((question) => question.open && !closed.has(question.row));
+          }),
+        );
+        setDrafts((existing) => {
+          const next = { ...existing };
+          for (const item of saved) delete next[item.question.row];
+          return next;
+        });
+        setLocalAnswers((existing) => {
+          const next = { ...existing };
+          for (const item of saved) next[item.question.row] = item.answer;
+          return next;
+        });
+        setLocalStatus((existing) => {
+          const next = { ...existing };
+          for (const item of saved) next[item.question.row] = "Answered";
+          return next;
+        });
+        setSessionSaved(nextSession);
+        setSkipped(nextSkipped);
+        if (saved.length === answers.length) setCursorOverride(cursorAfterSave(nextOrder, cardKey, nextOpen));
+      }
+      setSavingCard(false);
+      if (saved.length === answers.length) router.refresh();
     }
   }
 
-  function skip(question: Question) {
-    if (savingRow !== null || !isOpenStatus(statusOf(question))) return;
+  function skipCard(cardKey: string, cardQuestions: Question[]) {
+    if (savingCard || !cardQuestions.some((question) => isOpenStatus(statusOf(question)))) return;
     setError("");
-    const nextSkipped = noteSkipped(skipped, question.row);
-    const nextOrder = buildWizardOrder({ sheetRows, sessionSaved, skipped: nextSkipped });
+    let nextSkipped = skipped;
+    for (const question of cardQuestions) {
+      if (isOpenStatus(statusOf(question))) nextSkipped = noteSkipped(nextSkipped, question.row);
+    }
+    const nextOrder = orderedCards(sessionSaved, nextSkipped);
     setSkipped(nextSkipped);
-    setCursorOverride(cursorAfterSkip(order, nextOrder, question.row, openRows));
+    setCursorOverride(cursorAfterSkip(order, nextOrder, cardKey, openCardKeys));
   }
 
   function back() {
-    if (backIndex == null || savingRow !== null) return;
+    if (backIndex == null || savingCard) return;
     setError("");
     setCursorOverride(order[backIndex]);
   }
@@ -224,7 +360,7 @@ export function QuestionWizard({
   if (!current) {
     return (
       <section id="questions" className="scroll-mt-24 min-w-0 max-w-full overflow-x-hidden px-4 pt-5 lg:px-6 lg:pt-8">
-        <RemainingHeader count={0} checking={checking} onCheck={onCheck} />
+        <RemainingHeader count={0} checking={checking} onCheck={onCheck} sort={sort} onSort={chooseSort} />
         <p className="mt-2 text-sm text-muted-foreground">The last card is answered.</p>
         <article className="mt-5 rounded-3xl bg-card p-6 ring-1 ring-foreground/10">
           <div className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
@@ -255,46 +391,79 @@ export function QuestionWizard({
     );
   }
 
-  const saving = savingRow === current.row;
-  const openCard = isOpenStatus(statusOf(current));
-  const shown = textFor(current);
+  const questionsByRow = new Map(questions.map((question) => [question.row, question]));
+  const cardQuestions = current.questions.flatMap((item) => {
+    const question = questionsByRow.get(item.row);
+    return question ? [question] : [];
+  });
+  const openCard = cardQuestions.some((question) => isOpenStatus(statusOf(question)));
+  const applyHref = cardQuestions
+    .map((question) => presentQuestionText(question.question, question.link).applyHref)
+    .find((href) => href) ?? null;
+  const sources = [...new Set(cardQuestions.map((question) => question.source))];
 
   return (
     <section id="questions" className="scroll-mt-24 min-w-0 max-w-full overflow-x-hidden px-4 pt-5 lg:px-6 lg:pt-8">
-      <RemainingHeader count={openRows.size} large checking={checking} onCheck={onCheck} />
+      <RemainingHeader count={openJobKeys.size} large checking={checking} onCheck={onCheck} sort={sort} onSort={chooseSort} />
 
       <div className="relative mt-5 min-w-0 max-w-full pb-6">
         {order.length > 2 ? <div className="absolute inset-x-5 top-5 bottom-0 rounded-3xl bg-muted ring-1 ring-foreground/10" /> : null}
         {order.length > 1 ? <div className="absolute inset-x-2.5 top-2.5 bottom-2 rounded-3xl bg-card ring-1 ring-foreground/10" /> : null}
-        <article key={current.row} className="hunter-card relative min-w-0 overflow-hidden rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
+        <article key={current.key} className="hunter-card relative min-w-0 overflow-hidden rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <p className="min-w-0 text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
-            <SourcePill source={current.source} />
+            <p className="min-w-0 text-xs text-muted-foreground">
+              {formatShortDate(current.newest.date)}
+              {cardQuestions.length > 1 ? ` · ${cardQuestions.length} questions` : ""}
+            </p>
+            <span className="flex shrink-0 flex-wrap justify-end gap-1">
+              {sources.map((source) => (
+                <SourcePill key={source} source={source} />
+              ))}
+            </span>
           </div>
           <h2 className="question-copy mt-2 font-heading text-3xl leading-tight font-medium tracking-tight">
-            {current.job || "A job"}
+            {jobDisplayTitle(cardQuestions[0]?.job ?? current.newest.job)}
           </h2>
-          <div className="question-copy mt-4 min-w-0 max-w-full text-base leading-7">
-            <DisplayCopy text={current.question} link={current.link} />
+          {applyHref ? (
+            <a
+              href={applyHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-block max-w-full min-w-0 font-medium break-all text-primary underline underline-offset-2 [overflow-wrap:anywhere]"
+            >
+              {APPLY_LINK_LABEL}
+            </a>
+          ) : null}
+          <div className="mt-4 grid min-w-0 gap-5">
+            {cardQuestions.map((question, index) => (
+              <div key={question.row} className="min-w-0">
+                {cardQuestions.length > 1 ? (
+                  <p className="text-xs text-muted-foreground">{formatShortDate(question.date)}</p>
+                ) : null}
+                <div className="question-copy mt-2 min-w-0 max-w-full text-base leading-7">
+                  {presentQuestionText(question.question, question.link).text}
+                </div>
+                <label className="mt-3 block">
+                  <span className="sr-only">Answer for {question.job || "this question"}</span>
+                  <textarea
+                    ref={index === 0 ? areaRef : undefined}
+                    value={textFor(question)}
+                    onChange={(event) => setDrafts((existing) => ({ ...existing, [question.row]: event.target.value }))}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+                      if (enterInsertsNewline(usesCoarsePointer(), event.shiftKey)) return;
+                      if (event.repeat) return;
+                      event.preventDefault();
+                      void submitCard(cardQuestions, current.key);
+                    }}
+                    placeholder="Type an answer"
+                    disabled={savingCard}
+                    className="min-h-28 w-full min-w-0 rounded-2xl border border-input bg-background px-3 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+                  />
+                </label>
+              </div>
+            ))}
           </div>
-          <label className="mt-4 block">
-            <span className="sr-only">Answer for {current.job || "this question"}</span>
-            <textarea
-              ref={areaRef}
-              value={shown}
-              onChange={(event) => setDrafts((existing) => ({ ...existing, [current.row]: event.target.value }))}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-                if (enterInsertsNewline(usesCoarsePointer(), event.shiftKey)) return;
-                if (event.repeat) return;
-                event.preventDefault();
-                void submit(current);
-              }}
-              placeholder="Type an answer"
-              disabled={saving}
-              className="min-h-28 w-full rounded-2xl border border-input bg-background px-3 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
-            />
-          </label>
           {error ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
               {error}
@@ -305,22 +474,22 @@ export function QuestionWizard({
               type="button"
               variant="secondary"
               className="h-12 shrink-0 bg-muted px-4 text-muted-foreground"
-              disabled={saving || backIndex == null}
+              disabled={savingCard || backIndex == null}
               onClick={back}
             >
               Back
             </Button>
             <div className="wizard-touch-actions gap-2">
-              <Button type="button" className="h-12 min-w-0 flex-1 text-base" disabled={saving} onClick={() => submit(current)}>
-                {saving ? "Saving…" : "Next"}
+              <Button type="button" className="h-12 min-w-0 flex-1 text-base" disabled={savingCard} onClick={() => submitCard(cardQuestions, current.key)}>
+                {savingCard ? "Saving…" : "Next"}
               </Button>
               {openCard ? (
                 <Button
                   type="button"
                   variant="secondary"
                   className="h-12 bg-muted px-5 text-muted-foreground"
-                  disabled={saving}
-                  onClick={() => skip(current)}
+                  disabled={savingCard}
+                  onClick={() => skipCard(current.key, cardQuestions)}
                 >
                   Skip
                 </Button>
@@ -336,8 +505,8 @@ export function QuestionWizard({
               <button
                 type="button"
                 className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                disabled={saving}
-                onClick={() => skip(current)}
+                disabled={savingCard}
+                onClick={() => skipCard(current.key, cardQuestions)}
               >
                 Skip
               </button>

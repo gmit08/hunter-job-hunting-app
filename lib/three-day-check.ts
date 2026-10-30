@@ -1,3 +1,5 @@
+import { parseSheetMoment } from "./applications";
+
 export const DEFAULT_COMPLETED_CELL = "Dashboard Control!B2";
 export const COMPLETED_CELL_LABEL = "Last 3-day check completed";
 export const THREE_DAY_CHECK_WAIT_MS = 3 * 60 * 1000;
@@ -31,9 +33,13 @@ export function parseCompletionTimestamp(value: unknown): number | null {
   }
   if (typeof value !== "string") return null;
   const text = value.trim();
-  if (!ISO_TIMESTAMP.test(text)) return null;
-  const parsed = Date.parse(text);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (ISO_TIMESTAMP.test(text)) {
+    const parsed = Date.parse(text);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const moment = parseSheetMoment(text);
+  if (moment?.hasTime) return moment.ms;
+  return null;
 }
 
 export function completionIsNewer(value: unknown, clickedAtMs: number): boolean {

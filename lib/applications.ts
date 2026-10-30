@@ -161,24 +161,119 @@ export function parseNumber(value: unknown): number | null {
   return null;
 }
 
-export function parseSheetDate(value: unknown): string | null {
+export type SheetMoment = {
+  ms: number;
+  hasTime: boolean;
+  day: string;
+};
+
+function timeZoneOffsetMs(ms: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(ms));
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? "0");
+  let hour = read("hour");
+  let day = read("day");
+  if (hour === 24) {
+    hour = 0;
+    day += 1;
+  }
+  const asUtc = Date.UTC(read("year"), read("month") - 1, day, hour, read("minute"), read("second"));
+  return asUtc - ms;
+}
+
+export function zonedWallTimeToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  timeZone = TIME_ZONE,
+): number {
+  const guess = Date.UTC(year, month - 1, day, hour, minute, second);
+  const offset = timeZoneOffsetMs(guess, timeZone);
+  const adjusted = guess - offset;
+  const offsetAgain = timeZoneOffsetMs(adjusted, timeZone);
+  return offset === offsetAgain ? adjusted : guess - offsetAgain;
+}
+
+function clock24(hour: number, minute: number, second: number, ampm?: string): { hour: number; minute: number; second: number } | null {
+  if (minute > 59 || second > 59 || hour > 23) return null;
+  if (!ampm) return hour > 23 ? null : { hour, minute, second };
+  if (hour < 1 || hour > 12) return null;
+  const marker = ampm.toUpperCase();
+  if (hour === 12) hour = marker === "AM" ? 0 : 12;
+  else if (marker === "PM") hour += 12;
+  return { hour, minute, second };
+}
+
+function momentFromParts(
+  year: number,
+  month: number,
+  day: number,
+  hourText?: string,
+  minuteText?: string,
+  secondText?: string,
+  ampm?: string,
+): SheetMoment | null {
+  const dayText = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  if (!hourText) return { ms: zonedWallTimeToUtc(year, month, day, 0, 0, 0), hasTime: false, day: dayText };
+  const clock = clock24(Number(hourText), Number(minuteText), Number(secondText ?? 0), ampm);
+  if (!clock) return null;
+  const ms = zonedWallTimeToUtc(year, month, day, clock.hour, clock.minute, clock.second);
+  return { ms, hasTime: true, day: zonedISO(new Date(ms)) };
+}
+
+export function parseSheetMoment(value: unknown): SheetMoment | null {
   if (value == null || value === "") return null;
   if (typeof value === "number" && Number.isFinite(value)) {
     if (value < 20000 || value > 80000) return null;
     const ms = Math.round((value - 25569) * 86400 * 1000);
-    return new Date(ms).toISOString().slice(0, 10);
-  }
-  if (typeof value === "string") {
-    const text = value.trim();
-    if (!text || /^na$/i.test(text)) return null;
-    const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-    const us = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (us) {
-      return `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}`;
+    const hasTime = Math.abs(value % 1) > 1e-8;
+    const utcDay = new Date(ms).toISOString().slice(0, 10);
+    if (!hasTime) {
+      const [year, month, day] = utcDay.split("-").map(Number);
+      return { ms: zonedWallTimeToUtc(year, month, day, 0, 0, 0), hasTime: false, day: utcDay };
     }
+    return { ms, hasTime: true, day: zonedISO(new Date(ms)) };
   }
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || /^na$/i.test(text)) return null;
+  const isoInstant = text.match(
+    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
+  );
+  if (isoInstant) {
+    const ms = Date.parse(text.includes("T") ? text : text.replace(" ", "T"));
+    if (!Number.isFinite(ms)) return null;
+    return { ms, hasTime: true, day: zonedISO(new Date(ms)) };
+  }
+  const dated = text.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([AaPp][Mm]))?)?(?:\s*(?:ET|EDT|EST))?\s*$/,
+  );
+  if (dated) return momentFromParts(Number(dated[1]), Number(dated[2]), Number(dated[3]), dated[4], dated[5], dated[6], dated[7]);
+  const us = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?)?$/);
+  if (us) return momentFromParts(Number(us[3]), Number(us[1]), Number(us[2]), us[4], us[5], us[6], us[7]);
   return null;
+}
+
+export function storedSheetDate(value: unknown): string | null {
+  const moment = parseSheetMoment(value);
+  if (!moment) return null;
+  if (!moment.hasTime) return moment.day;
+  return new Date(moment.ms).toISOString();
+}
+
+export function parseSheetDate(value: unknown): string | null {
+  return parseSheetMoment(value)?.day ?? null;
 }
 
 export function parsePaused(value: unknown): boolean {
@@ -250,14 +345,24 @@ export function startOfWeekISO(date: Date, timeZone = TIME_ZONE): string {
 
 export function formatShortDate(iso: string | null): string {
   if (!iso) return "—";
-  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return iso;
-  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  const moment = parseSheetMoment(iso);
+  if (!moment) return iso;
+  if (!moment.hasTime) {
+    const [year, month, day] = moment.day.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(date);
+  }
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
     month: "short",
     day: "numeric",
-    timeZone: "UTC",
-  }).format(date);
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(moment.ms));
 }
 
 export function formatTimestamp(date: Date): string {
@@ -282,8 +387,8 @@ function isDateHeader(header: string): boolean {
 
 function formatFieldValue(header: string, value: unknown): string {
   if (isDateHeader(header)) {
-    const parsed = parseSheetDate(value);
-    if (parsed) return parsed;
+    const stored = storedSheetDate(value);
+    if (stored) return formatShortDate(stored);
     return cellToString(value);
   }
   if (typeof value === "number" && Number.isFinite(value) && Math.abs(value) >= 1000) {
@@ -351,7 +456,7 @@ export function parseApplications(rows: unknown[][]): Application[] {
     applications.push({
       row: index + 1,
       fields,
-      dateApplied: indexes.dateApplied >= 0 ? parseSheetDate(row[indexes.dateApplied]) : null,
+      dateApplied: indexes.dateApplied >= 0 ? storedSheetDate(row[indexes.dateApplied]) : null,
       company,
       role,
       status: readText(row, indexes.status, "status"),
@@ -422,7 +527,7 @@ export function parseQuestions(rows: unknown[][]): Question[] {
     const source = columns.source >= 0 ? cellToString(row[columns.source]) : "";
     const link = columns.link >= 0 ? cellToString(row[columns.link]) : "";
     const dateValue = columns.date >= 0 ? row[columns.date] : "";
-    const date = parseSheetDate(dateValue) ?? cellToString(dateValue);
+    const date = storedSheetDate(dateValue) ?? cellToString(dateValue);
     if (!question && !job && !answer && !status && !source && !link) continue;
     questions.push({
       row: index + 1,
@@ -456,10 +561,10 @@ export function parseScoring(rows: unknown[][]): ScoringRule[] {
 export function summarize(applications: Application[], now = new Date()): Summary {
   const today = zonedISO(now);
   const weekStart = startOfWeekISO(now);
-  const thisWeek = applications.filter(
-    (application) =>
-      application.dateApplied != null && application.dateApplied >= weekStart && application.dateApplied <= today,
-  ).length;
+  const thisWeek = applications.filter((application) => {
+    const day = parseSheetMoment(application.dateApplied ?? "")?.day ?? null;
+    return day != null && day >= weekStart && day <= today;
+  }).length;
   const scores = applications
     .map((application) => application.score)
     .filter((score): score is number => score != null);
@@ -478,7 +583,12 @@ export function summarize(applications: Application[], now = new Date()): Summar
       if (byScore !== 0) return byScore;
       const byMatch = (right.matchScore ?? -1) - (left.matchScore ?? -1);
       if (byMatch !== 0) return byMatch;
-      return (right.dateApplied ?? "").localeCompare(left.dateApplied ?? "");
+      const leftMs = parseSheetMoment(left.dateApplied ?? "")?.ms;
+      const rightMs = parseSheetMoment(right.dateApplied ?? "")?.ms;
+      if (leftMs == null && rightMs == null) return 0;
+      if (leftMs == null) return 1;
+      if (rightMs == null) return -1;
+      return rightMs - leftMs;
     })
     .slice(0, 5);
 

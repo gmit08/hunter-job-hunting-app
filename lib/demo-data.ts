@@ -78,7 +78,7 @@ function applicationRows(now: Date): unknown[][] {
     HEADERS,
     row(1, "Willowbrook Health", "Clinical Pharmacist", "Interview", 176, 91, "Cedar Hollow, Colorado", "Hybrid", "Y", "$158,000–$172,000", "https://example.com/jobs/willowbrook/clinical-pharmacist/panel-interview-cedar-hollow-anticoagulation-cases-residency-project-loan-repayment", daysAgo(1, now), "Panel interview Thursday. Review anticoagulation cases and the residency project.", 20),
     row(0, "Northhaven Community Hospital", "Clinical Pharmacist, Evenings", "Applied", 142, 84, "Cedar Hollow, Colorado", "On-site", "NA", "$150,000–$164,000", "https://example.com/jobs/northhaven", "", "Evening block. Benefits include a 403(b) match, no loan repayment.", 0),
-    row(2, "Lantern Oncology Partners", "Oncology Pharmacist", "Interview", 188, 93, "Cedar Hollow, Colorado", "Hybrid", "Y", "$162,000–$178,000", "https://example.com/jobs/lantern", daysAgo(2, now), "Second interview next week. Prep the infusion verification scenarios.", 25),
+    row(2, "Lantern Oncology Partners", "Oncology Pharmacist", "Interview", 188, 96, "Cedar Hollow, Colorado", "Hybrid", "Y", "$162,000–$178,000", "https://example.com/jobs/lantern", daysAgo(2, now), "Second interview next week. Prep the infusion verification scenarios.", 25),
     row(4, "Pineshade Specialty Pharmacy", "Specialty Pharmacist", "Applied", 161, 86, "Remote, Mountain time", "Remote", "Y", "$155,000–$170,000", "https://example.com/jobs/pineshade", "", "Specialty queue for complex oral regimens. Loan repayment is listed.", 40),
     row(3, "Redcedar Ambulatory Clinics", "Ambulatory Care Pharmacist", "Applied", 170, 88, "Cedar Hollow, Colorado", "Hybrid", "Y", "$152,000–$166,000", "https://example.com/jobs/redcedar", daysAgo(3, now), "Collaborative practice in primary care. Clinic is a short drive.", 15),
     row(6, "Highdesert Therapy Group", "Remote Medication Therapy Pharmacist", "Offer", 194, 94, "Remote, United States", "Remote", "Y", "$160,000–$174,000", "https://example.com/jobs/highdesert", daysAgo(1, now), "Offer in the target band. Includes loan repayment and a 403(b) match.", 50),
@@ -120,6 +120,15 @@ function questionRows(): unknown[][] {
     ],
     [
       "",
+      "Solstice Informatics Collaborative - Pharmacy Informatics Pharmacist (Match 87, Remote, Mountain time)",
+      "A follow-up form asks which clinic systems you have used. What should I list?",
+      "",
+      "Open",
+      "ZipRecruiter",
+      "",
+    ],
+    [
+      "",
       "Summitridge Clinics — Clinical Pharmacy Specialist",
       "What should I enter for the work-authorization question?",
       "",
@@ -148,10 +157,10 @@ const SCORING_ROWS: unknown[][] = [
 ];
 
 export function demoQuestions(now = new Date()): Question[] {
-  const dates = [0, 1, 2, 3, 4, 6, 8].map((days) => daysAgo(days, now));
+  const dates = [0, 0, 1, 2, 3, 4, 6, 8].map((days) => daysAgo(days, now));
   return parseQuestions(questionRows()).map((question, index) => ({
     ...question,
-    date: dates[index] ?? question.date,
+    date: index === 1 ? `${dates[1]} 3:22 PM ET` : (dates[index] ?? question.date),
   }));
 }
 
