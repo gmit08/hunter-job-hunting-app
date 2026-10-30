@@ -130,7 +130,7 @@ export function Dashboard({
   }
 
   return (
-    <div className="coarse-page-pad min-h-full">
+    <div className="coarse-page-pad min-h-full w-full min-w-0 max-w-full">
       <AppMenu
         paused={data.paused}
         webhookReady={data.webhookReady}

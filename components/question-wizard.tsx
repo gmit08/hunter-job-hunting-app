@@ -79,9 +79,9 @@ function RemainingHeader({
   onCheck: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex w-full min-w-0 items-center gap-1">
       <p
-        className={`min-w-0 font-heading leading-none font-medium tracking-tight whitespace-nowrap ${
+        className={`min-w-0 font-heading leading-none font-medium tracking-tight ${
           large ? "text-4xl lg:text-5xl" : "text-4xl"
         }`}
       >
@@ -271,7 +271,7 @@ export function QuestionWizard({
             <p className="min-w-0 text-xs text-muted-foreground">{formatShortDate(current.date)}</p>
             <SourcePill source={current.source} />
           </div>
-          <h2 className="mt-2 break-words font-heading text-3xl leading-tight font-medium tracking-tight [overflow-wrap:anywhere]">
+          <h2 className="question-copy mt-2 font-heading text-3xl leading-tight font-medium tracking-tight">
             {current.job || "A job"}
           </h2>
           <div className="question-copy mt-4 min-w-0 max-w-full text-base leading-7">

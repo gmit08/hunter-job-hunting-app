@@ -132,7 +132,8 @@
   animation: hunter-card-in 220ms ease-out;
 }
 
-.question-copy {
+.question-copy,
+.\[overflow-wrap\:anywhere\] {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
