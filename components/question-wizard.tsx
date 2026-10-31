@@ -479,22 +479,20 @@ export function QuestionWizard({
             >
               Back
             </Button>
-            <div className="wizard-touch-actions gap-2">
-              <Button type="button" className="h-12 min-w-0 flex-1 text-base" disabled={savingCard} onClick={() => submitCard(cardQuestions, current.key)}>
-                {savingCard ? "Saving…" : "Next"}
+            <Button type="button" className="wizard-next h-12 min-w-0 px-5 text-base" disabled={savingCard} onClick={() => submitCard(cardQuestions, current.key)}>
+              {savingCard ? "Saving…" : "Next"}
+            </Button>
+            {openCard ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="wizard-touch-actions h-12 bg-muted px-5 text-muted-foreground"
+                disabled={savingCard}
+                onClick={() => skipCard(current.key, cardQuestions)}
+              >
+                Skip
               </Button>
-              {openCard ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-12 bg-muted px-5 text-muted-foreground"
-                  disabled={savingCard}
-                  onClick={() => skipCard(current.key, cardQuestions)}
-                >
-                  Skip
-                </Button>
-              ) : null}
-            </div>
+            ) : null}
           </div>
           <p className="wizard-touch-hint mt-2 text-xs text-muted-foreground">
             Next saves this card. Return starts a new line.{openCard ? " Skip keeps it for later." : ""}
